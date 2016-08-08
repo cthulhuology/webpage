@@ -1,0 +1,20 @@
+{application, webpage,
+	[
+	{description, ""},
+	{vsn, "1"},
+	{registered, []},
+	{applications, [
+		kernel,
+		stdlib,
+		crypto,
+		asn1,
+		public_key,
+		ssl
+	]},
+	{mod, { webpage_app, []}},
+	{env, [
+		{ cacertfile, "cacert.pem" },
+		{ certfile, "cert.pem" },
+		{ keyfile, "key.pem" }
+	]}
+]}.
