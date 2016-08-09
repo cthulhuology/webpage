@@ -3,7 +3,7 @@
 -copyright(<<"© 2016 David J Goehrig"/utf8>>).
 
 
--include("../../http/include/http.hrl").
+-include("include/http.hrl").
 -record(webpage_logger, {}).
 -export([ get/1, post/1, put/1, delete/1, options/1, head/1, trace/1, connect/1 ]).
 
