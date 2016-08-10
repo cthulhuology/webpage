@@ -30,20 +30,20 @@ accept(Port) ->
 %
 
 init(Server = #webpage_server{ port = Port }) ->
-	{ ok, CACert } = application:get_env(cacertfile),
-	{ ok, Cert } = application:get_env(certfile),
-	{ ok, Key } = application:get_env(keyfile),
+	CACert = code:priv_dir(webpage) ++ "/cacert.pem",
+	Cert = code:priv_dir(webpage) ++ "/cert.pem",
+	Key = code:priv_dir(webpage) ++ "/key.pem",
 	case ssl:listen(Port,[
 		binary, 
 		{packet,0},
-		{certfile, code:priv_dir(webpage) ++ "/" ++ Cert}, 
-		{keyfile, code:priv_dir(webpage) ++ "/" ++ Key},
-		{cacertfile, code:priv_dir(webpage) ++ "/" ++ CACert},
+		{certfile, Cert}, 
+		{keyfile, Key},
+		{cacertfile, CACert},
 		{reuseaddr, true},
 		{verify, verify_none}, 
-		{fail_if_no_peer_cert, false},
-		{versions,['tlsv1.2']},
-		{ciphers,[{rsa,aes_128_cbc,sha}]}
+		{fail_if_no_peer_cert, false}
+	%	{versions,['tlsv1.2']},
+	%	{ciphers,[{rsa,aes_128_cbc,sha}]}
 	]) of
 		{ ok, Socket } ->
 			accept(Port),

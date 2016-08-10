@@ -11,6 +11,14 @@
 		public_key,
 		ssl
 	]},
+	{ modules, [ 
+		webpage,
+		webpage_app,
+		webpage_sup,
+		webpage_router,
+		webpage_logger,	
+		webpage_server
+	]},
 	{mod, { webpage_app, []}},
 	{env, [
 		{ cacertfile, "cacert.pem" },
