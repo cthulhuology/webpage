@@ -22,28 +22,28 @@
 %
 
 get(Req = #request{ path = Path }) ->
-	gen_server:call(?MODULE,{ get, Path, Req}).
+	gen_server:call(?MODULE,{ dispatch, get, Path, Req}).
 
 post(Req = #request{ path = Path }) ->
-	gen_server:call(?MODULE,{ post, Path, Req}).
+	gen_server:call(?MODULE,{ dispatch, post, Path, Req}).
 
 put(Req = #request{ path = Path }) ->
-	gen_server:call(?MODULE,{ put, Path, Req}).
+	gen_server:call(?MODULE,{ dispatch, put, Path, Req}).
 
 delete(Req = #request{ path = Path }) ->
-	gen_server:call(?MODULE,{ delete, Path, Req}).
+	gen_server:call(?MODULE,{ dispatch, delete, Path, Req}).
 
 options(Req = #request{ path = Path }) ->
-	gen_server:call(?MODULE,{ options, Path, Req}).
+	gen_server:call(?MODULE,{ dispatch, options, Path, Req}).
 
 head(Req = #request{ path = Path }) ->
-	gen_server:call(?MODULE,{ head, Path, Req}).
+	gen_server:call(?MODULE,{ dispatch, head, Path, Req}).
 
 trace(Req = #request{ path = Path }) ->
-	gen_server:call(?MODULE,{ trace, Path, Req}).
+	gen_server:call(?MODULE,{ dispatch, trace, Path, Req}).
 
 connect(Req = #request{ path = Path }) ->
-	gen_server:call(?MODULE,{ connect, Path, Req}).
+	gen_server:call(?MODULE,{ dispatch, connect, Path, Req}).
 
 start_link() ->
 	gen_server:start_link({ local, ?MODULE }, ?MODULE, [], []).
@@ -93,68 +93,18 @@ init([]) ->
 handle_call(stop,_From,State) ->
 	{ stop, stopped, State };
 
-handle_call({get,Path,Req}, _From, State = #webpage_router{ paths = Paths }) ->
+handle_call({dispatch,Method,Path,Req}, _From, State = #webpage_router{ paths = Paths }) ->
 	case proplists:get_value(Path,Paths) of
 		undefined -> 
 			{ reply, #response{ status = 404, body= <<"Not Found">> }, State };
 		Module ->
-			{ reply, erlang:apply(Module,get,[Req]), State }
-	end;
-
-handle_call({post,Path,Req}, _From, State = #webpage_router{ paths = Paths }) ->
-	case proplists:get_value(Path,Paths) of
-		undefined -> 
-			{ reply, #response{ status = 404, body= <<"Not Found">> }, State };
-		Module ->
-			{ reply, erlang:apply(Module,post,[Req]), State }
-	end;
-
-handle_call({put,Path,Req}, _From, State = #webpage_router{ paths = Paths }) ->
-	case proplists:get_value(Path,Paths) of
-		undefined -> 
-			{ reply, #response{ status = 404, body= <<"Not Found">> }, State };
-		Module ->
-			{ reply, erlang:apply(Module,put,[Req]), State }
-	end;
-
-handle_call({delete,Path,Req}, _From, State = #webpage_router{ paths = Paths }) ->
-	case proplists:get_value(Path,Paths) of
-		undefined -> 
-			{ reply, #response{ status = 404, body= <<"Not Found">> }, State };
-		Module ->
-			{ reply, erlang:apply(Module,delete,[Req]), State }
-	end;
-
-handle_call({head,Path,Req}, _From, State = #webpage_router{ paths = Paths }) ->
-	case proplists:get_value(Path,Paths) of
-		undefined -> 
-			{ reply, #response{ status = 404, body= <<"Not Found">> }, State };
-		Module ->
-			{ reply, erlang:apply(Module,head,[Req]), State }
-	end;
-
-handle_call({options,Path,Req}, _From, State = #webpage_router{ paths = Paths }) ->
-	case proplists:get_value(Path,Paths) of
-		undefined -> 
-			{ reply, #response{ status = 404, body= <<"Not Found">> }, State };
-		Module ->
-			{ reply, erlang:apply(Module,options,[Req]), State }
-	end;
-
-handle_call({trace,Path,Req}, _From, State = #webpage_router{ paths = Paths }) ->
-	case proplists:get_value(Path,Paths) of
-		undefined -> 
-			{ reply, #response{ status = 404, body= <<"Not Found">> }, State };
-		Module ->
-			{ reply, erlang:apply(Module,trace,[Req]), State }
-	end;
-
-handle_call({connect,Path,Req}, _From, State = #webpage_router{ paths = Paths }) ->
-	case proplists:get_value(Path,Paths) of
-		undefined -> 
-			{ reply, #response{ status = 404, body= <<"Not Found">> }, State };
-		Module ->
-			{ reply, erlang:apply(Module,connect,[Req]), State }
+			Functions = Module:module_info(functions),
+			case proplists:lookup(Method,Functions) of
+				{ Method, 1 } -> 
+					{ reply, Module:Method(Req), State };
+				_ ->
+					{ reply, #response{ status = 405 }, State }
+			end
 	end;
 
 handle_call(Message,_From,State) ->
