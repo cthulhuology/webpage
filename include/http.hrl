@@ -7,7 +7,6 @@
 
 -record(response, {
 	status = 200,
-	reason = <<"OK">>,
 	protocol = <<"HTTP/1.1">>,
 	headers = [],
 	body = <<>>

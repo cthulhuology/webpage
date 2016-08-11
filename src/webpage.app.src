@@ -21,6 +21,7 @@
 	]},
 	{mod, { webpage_app, []}},
 	{env, [
+		{ salt, <<"thisisareallyterriblesaltdon'tuse">> },
 		{ cacertfile, "cacert.pem" },
 		{ certfile, "cert.pem" },
 		{ keyfile, "key.pem" },

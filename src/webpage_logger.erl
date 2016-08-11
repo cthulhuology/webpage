@@ -23,9 +23,12 @@ resp(Req) ->
 	}.
 	
 
-get(Req) ->
+get(Req = #request{}) ->
 	http:dump(Req),
-	resp(Req).
+	resp(Req);
+
+get(Resp = #response{}) ->
+	Resp.
 
 post(Req) ->
 	http:dump(Req),
