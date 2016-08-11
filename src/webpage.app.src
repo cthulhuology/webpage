@@ -1,5 +1,4 @@
-{application, webpage,
-	[
+{application, webpage, [
 	{description, ""},
 	{vsn, "1"},
 	{registered, []},
@@ -17,12 +16,27 @@
 		webpage_sup,
 		webpage_router,
 		webpage_logger,	
+		webpage_file,
 		webpage_server
 	]},
 	{mod, { webpage_app, []}},
 	{env, [
 		{ cacertfile, "cacert.pem" },
 		{ certfile, "cert.pem" },
-		{ keyfile, "key.pem" }
+		{ keyfile, "key.pem" },
+		{ webpage, [
+			{
+				webpage_server_443, 
+				webpage_server, 
+				[ webpage_router, 443 ],
+				[ webpage_router, webpage, webpage_server ]
+			},
+			{
+				webpage_router,
+				webpage_router,
+				[],
+				[ webpage_router ]
+			}
+		]}
 	]}
 ]}.

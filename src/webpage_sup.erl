@@ -10,24 +10,16 @@ start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-	{ok, { {one_for_one, 5, 10}, [
-		#{ 
-			id => webpage_router,
-			start => { webpage_router, start_link, []},
-			restart => permanent,
-			shutdown => brutal_kill,
-			type => worker,
-			modules => [ webpage_router ]
-		},
-		#{
-			id => webpage_server,
-			start => { webpage_server, start_link, [ webpage_router, 443 ]},
-			restart => permanent,
-			shutdown => brutal_kill,
-			type => worker,
-			modules => [ webpage_server, webpage_router, webpage ]
-		}
-	]}}.
+	{ ok, Webpage } = application:get_env(webpage),
+	Servers = [ #{ 
+		id =>  Id,
+		start => { Service, start_link, Args },
+		restart => permanent,
+		shutdown => brutal_kill,
+		type => worker,
+		modules =>  Modules
+		} || { Id, Service, Args, Modules } <- Webpage ], 
+	{ok, { {one_for_one, 5, 10}, Servers }}.
 
 server(Module,Port) ->
 	supervisor:start_child(?MODULE, #{ 

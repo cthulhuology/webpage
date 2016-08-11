@@ -59,7 +59,7 @@ remove(Path) ->
 
 install(Nodes) ->
 	rpc:multicall(Nodes,application,stop, [ mnesia ]),
-	Database = code:priv_dir(webpage) ++ "/routes",
+	Database = code:priv_dir(webpage),
 	application:set_env(mnesia,dir, Database),
 	case mnesia:delete_schema(Nodes) of
 		ok ->
@@ -80,7 +80,7 @@ install(Nodes) ->
 %
 
 init([]) ->
-	application:set_env(mnesia,dir, code:priv_dir(webpage) ++ "/routes"),
+	application:set_env(mnesia,dir, code:priv_dir(webpage)),
 	application:ensure_started(mnesia),
 	mnesia:wait_for_tables([ webpage_routes ], 5000),	 
 	F = fun() ->
@@ -97,7 +97,19 @@ handle_call({dispatch,Method,Path,Req}, _From, State = #webpage_router{ paths = 
 	case proplists:get_value(Path,Paths) of
 		undefined -> 
 			{ reply, #response{ status = 404, body= <<"Not Found">> }, State };
-		Module ->
+		Modules when is_list(Modules) ->
+			io:format("routing to ~p~n", [ Modules ]),
+			Res = lists:foldl(fun(Module,R) ->
+				Functions = Module:module_info(functions),
+				case proplists:lookup(Method,Functions) of
+					{ Method, 1 } ->
+						Module:Method(R);
+					_ ->
+						#response{ status = 500 }
+				end
+			end, Req, Modules),
+			{ reply, Res, State };
+		Module when is_atom(Module) ->
 			Functions = Module:module_info(functions),
 			case proplists:lookup(Method,Functions) of
 				{ Method, 1 } -> 
@@ -114,6 +126,7 @@ handle_call(Message,_From,State) ->
 
 handle_cast({ add, Path, Module }, State = #webpage_router{ paths = Paths }) ->
 	F = fun() ->
+		mnesia:delete(webpage_routes, Path, write),
 		mnesia:write(#webpage_routes{ path = Path, module = Module, active = true })
 	end,
 	mnesia:activity(transaction,F),
@@ -121,7 +134,7 @@ handle_cast({ add, Path, Module }, State = #webpage_router{ paths = Paths }) ->
 
 handle_cast({ remove, Path }, State = #webpage_router{ paths = Paths }) ->
 	F = fun() ->
-		mnesia:delete(#webpage_routes{ path = Path })
+		mnesia:delete(webpage_routes, Path, write)
 	end,
 	mnesia:activity(transaction,F),
 	{ noreply, State#webpage_router{ paths = proplists:delete(Path,Paths) }};	
