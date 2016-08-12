@@ -7,11 +7,37 @@
 
 -record(user_auth, { token, user, email, active, paths = [] }).
 
+-export([ get/1, post/1, put/1, delete/1, options/1, head/1, trace/1, connect/1 ]).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Public API
 %
 
-get(Request = #request{ path = Path, headers = Headers }) ->
+get(Request = #request{}) ->
+	auth(Request).
+
+post(Request = #request{}) ->
+	auth(Request).
+
+put(Request = #request{}) ->
+	auth(Request).
+
+delete(Request = #request{}) ->
+	auth(Request).
+
+options(Request = #request{}) ->
+	auth(Request).
+
+trace(Request = #request{}) ->
+	auth(Request).
+
+connect(Request = #request{}) ->
+	auth(Request).
+
+head(Request = #request{}) ->
+	auth(Request).
+
+auth(Request = #request{ path = Path, headers = Headers }) ->
 	io:format("headers are ~p~n",[ Headers ]),
 	case proplists:get_value(<<"Authorization">>, Headers ) of
 		undefined ->
