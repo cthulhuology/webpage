@@ -65,10 +65,15 @@ handle_info({ ssl, Socket, Data }, Webpage = #webpage{ request = Req, module = M
 	Request = http:request(Req,Data),
 	case Request#request.stage of
 		done ->
-			Response = erlang:apply(Module,Request#request.method,[ Request ]),
-			Bin = http:response(Response),
-			ssl:send(Socket,Bin),
-			{ noreply, Webpage#webpage{ request = #request{} }};
+			case erlang:apply(Module,Request#request.method,[ Request ]) of
+				{ websocket, Mod } ->
+					webpage_websocket_sup:client(Socket,Request,Mod),
+					{ noreply, Webpage };
+				Response ->
+					Bin = http:response(Response),
+					ssl:send(Socket,Bin),
+					{ noreply, Webpage#webpage{ request = #request{} }}
+			end;
 		_ ->
 			{ noreply, Webpage#webpage{ request = Request }}
 	end;

@@ -19,7 +19,16 @@ init([]) ->
 		type => worker,
 		modules =>  Modules
 		} || { Id, Service, Args, Modules } <- Webpage ], 
-	{ok, { {one_for_one, 5, 10}, Servers }}.
+	{ok, { {one_for_one, 5, 10}, [
+		#{ id => webpage_websocket_sup,
+		start => { webpage_websocket_sup, start_link, []},
+		restart => permanent,
+		shutdown => brutal_kill,
+		type => supervisor,
+		modules => [
+			webpage_websocket_sup
+		]}
+		| Servers ] }}.
 
 server(Module,Port) ->
 	supervisor:start_child(?MODULE, #{ 

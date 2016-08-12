@@ -110,12 +110,17 @@ handle_call({dispatch,Method,Path,Req}, _From, State = #webpage_router{ paths = 
 			end, Req, Modules),
 			{ reply, Res, State };
 		Module when is_atom(Module) ->
-			Functions = Module:module_info(functions),
-			case proplists:lookup(Method,Functions) of
-				{ Method, 1 } -> 
-					{ reply, Module:Method(Req), State };
-				_ ->
-					{ reply, #response{ status = 405 }, State }
+			case webpage_websocket:request(Req) of
+				false ->
+					Functions = Module:module_info(functions),
+					case proplists:lookup(Method,Functions) of
+						{ Method, 1 } -> 
+							{ reply, Module:Method(Req), State };
+						_ ->
+							{ reply, #response{ status = 405 }, State }
+					end;
+				true ->
+					{ reply, { websocket, Module }, State }
 			end
 	end;
 
