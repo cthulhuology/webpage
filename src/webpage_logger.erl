@@ -4,7 +4,8 @@
 
 
 -include("include/http.hrl").
--record(webpage_logger, {}).
+
+
 -export([ get/1, post/1, put/1, delete/1, options/1, head/1, trace/1, connect/1 ]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -23,9 +24,12 @@ resp(Req) ->
 	}.
 	
 
-get(Req) ->
+get(Req = #request{}) ->
 	http:dump(Req),
-	resp(Req).
+	resp(Req);
+
+get(Resp = #response{}) ->
+	Resp.
 
 post(Req) ->
 	http:dump(Req),

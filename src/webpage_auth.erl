@@ -11,4 +11,4 @@
 
 get(Request = #request{ path = Path }) ->
 	io:format("webpage_auth for ~p~n", [ Path ]),
-	Request.
+	#response{ status = 403 }.
