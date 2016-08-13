@@ -3,13 +3,12 @@
 -copyright(<<"© 2012,2013 David J. Goehrig"/utf8>>).
 -behavior(gen_server).
 
--export([ start_link/3, request/1, send/2, socket/1, headers/1, 
+-export([ get/1, start_link/3, request/1, send/2, socket/1, headers/1, 
 	path/1, stop/1, bind/3  ]).
 -export([ init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3 ]).
 
 -include("../include/http.hrl").
 
--record(websocket, { socket, path, headers, module, function, data, state }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Public Methods
@@ -44,35 +43,28 @@ bind(WebSocket,Module,Function) ->
 	gen_server:cast(WebSocket, { bind, Module, Function }).
 
 %% returns true if the request is a websocket request
-request(#request{ headers = Headers }) ->
+get(Request = #request{ headers = Headers }) ->
 	io:format("got headers ~p~n", [ Headers ]),
 	case proplists:get_value(<<"Sec-WebSocket-Version">>,Headers) of
 		<<"13">> -> 
-			true;
+			handshake(Headers);
 		Any ->
-			io:format("Protocol not supported ~p", [ Any ]),
-			false
+			io:format("websocket protocol not supported~n"),
+			#response{ status =
 	end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% gen_server methods
 init({ Socket, #request{ headers = Headers, path = Path, body = Data }, Module }) ->
 	ok = ssl:controlling_process(Socket,self()),
-	Handshake = handshake(Headers),
-	case ssl:send(Socket,Handshake) of
-		{ error, Reason } ->	
-			io:format("Handshake failed ~p~n", [ Reason ]),
-			{ stop, handshake_failed };
-		ok -> 
-			spawn(Module,recv,[self(),Path,connected]),
-			{ ok, #websocket{ 
-				socket = Socket, 
-				headers = Headers, 
-				path = Path, 
-				module = Module,
-				function = recv,
-				state = { wait, Data, [] }}}
-	end.
+	spawn(Module,recv,[self(),Path,connected]),
+	{ ok, #websocket{ 
+		socket = Socket, 
+		headers = Headers, 
+		path = Path, 
+		module = Module,
+		function = recv,
+		state = { wait, Data, [] }}}.
 	
 handle_call( socket, _From, WebSocket = #websocket{ socket = Socket }) ->
 	{ reply, Socket, WebSocket };
@@ -164,13 +156,13 @@ handshake(Headers) ->
 	Shake = <<Key/binary,"258EAFA5-E914-47DA-95CA-C5AB0DC85B11">>, %% 25.. is magic
 	Crypt = crypto:hash(sha,Shake),
 	Secret = base64:encode(Crypt),
-	http:response(#response{
+	#response{
 		status = 101,
 		headers = [
 			{ <<"Upgrade">>, <<"websocket">> },
 			{ <<"Connection">>, <<"Upgrade">> },
 			{ <<"Sec-WebSocket-Accept">>, Secret }]
-		}).
+	}.
 
 
 %% Frame a Datagram with the appropriate Opcode, Length, and Mask
