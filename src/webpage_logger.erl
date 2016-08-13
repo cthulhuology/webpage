@@ -29,6 +29,7 @@ get(Req = #request{}) ->
 	resp(Req);
 
 get(Resp = #response{}) ->
+	io:format("forwarding response ~p~n", [ Resp ]),
 	Resp.
 
 post(Req) ->

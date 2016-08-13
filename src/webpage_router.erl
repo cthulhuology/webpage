@@ -15,7 +15,7 @@
 
 -include("include/http.hrl").
 -record(webpage_router, { paths = []}).
--record(webpage_routes, { path, module, active = true }).
+-record(webpage_routes, { path, routes= [], active = true }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Public API
@@ -51,8 +51,8 @@ start_link() ->
 stop() ->
 	gen_server:call(?MODULE,stop).
 
-add(Path,Module) ->
-	gen_server:cast(?MODULE,{add,Path,Module}).
+add(Path,Routes) ->
+	gen_server:cast(?MODULE,{add,Path,Routes}).
 
 remove(Path) ->
 	gen_server:cast(?MODULE,{remove,Path}).
@@ -84,8 +84,8 @@ init([]) ->
 	application:ensure_started(mnesia),
 	mnesia:wait_for_tables([ webpage_routes ], 5000),	 
 	F = fun() ->
-		Routes = mnesia:match_object(#webpage_routes{ path = '_', module = '_', active = true }),
-		[ { Path, Module } ||  #webpage_routes{ path = Path, module = Module } <- Routes ]
+		Paths = mnesia:match_object(#webpage_routes{ path = '_', routes = '_', active = true }),
+		[ { Path, Routes } ||  #webpage_routes{ path = Path, routes = Routes } <- Paths ]
 	end,
 	Paths = mnesia:activity(transaction,F),	
 	{ ok, #webpage_router{ paths = Paths }}.
@@ -93,30 +93,15 @@ init([]) ->
 handle_call(stop,_From,State) ->
 	{ stop, stopped, State };
 
-handle_call({dispatch,Method,Path,Req}, _From, State = #webpage_router{ paths = Paths }) ->
+handle_call({dispatch,Method,Path,Request}, _From, State = #webpage_router{ paths = Paths }) ->
 	case proplists:get_value(Path,Paths) of
-		undefined -> 
-			{ reply, #response{ status = 404, body= <<"Not Found">> }, State };
-		Modules when is_list(Modules) ->
-			io:format("routing to ~p~n", [ Modules ]),
-			Res = lists:foldl(fun(Module,R) ->
-				Functions = Module:module_info(functions),
-				case proplists:lookup(Method,Functions) of
-					{ Method, 1 } ->
-						Module:Method(R);
-					_ ->
-						#response{ status = 500 }
-				end
-			end, Req, Modules),
+		Routes when is_list(Routes) ->
+			io:format("Routing to ~p~n", [ Routes ]),
+			Res = lists:foldl(fun(Route,R) -> route(Method,Route,R) end, Request, Routes ),
 			{ reply, Res, State };
-		Module when is_atom(Module) ->
-			Functions = Module:module_info(functions),
-			case proplists:lookup(Method,Functions) of
-				{ Method, 1 } -> 
-					{ reply, Module:Method(Req), State };
-				_ ->
-					{ reply, #response{ status = 405 }, State }
-			end
+		Any ->
+			io:format("Got invalid route ~p~n", [ Any ]),
+			{ reply, #response{ status = 404, body= <<"Not Found">> }, State }
 	end;
 
 handle_call(Message,_From,State) ->
@@ -124,13 +109,13 @@ handle_call(Message,_From,State) ->
 	{ reply, #response{ status = 405 }, State }.
 
 
-handle_cast({ add, Path, Module }, State = #webpage_router{ paths = Paths }) ->
+handle_cast({ add, Path, Routes }, State = #webpage_router{ paths = Paths }) ->
 	F = fun() ->
 		mnesia:delete(webpage_routes, Path, write),
-		mnesia:write(#webpage_routes{ path = Path, module = Module, active = true })
+		mnesia:write(#webpage_routes{ path = Path, routes = Routes, active = true })
 	end,
 	mnesia:activity(transaction,F),
-	{ noreply, State#webpage_router{ paths = [ { Path, Module } | proplists:delete(Path,Paths) ]}};	
+	{ noreply, State#webpage_router{ paths = [ { Path, Routes } | proplists:delete(Path,Paths) ]}};	
 
 handle_cast({ remove, Path }, State = #webpage_router{ paths = Paths }) ->
 	F = fun() ->
@@ -152,3 +137,37 @@ code_change(_Old,_Extra,State) ->
 
 terminate(_Reason,_State) ->
 	ok.
+
+route(_Method, { Module, Function, Args },R) ->		%% route defined function
+	io:format("routing to ~p:~p(~p)~n", [ Module, Function, Args ]),
+	Functions = Module:module_info(functions),
+	case proplists:lookup(Function,Functions) of
+		{ Fun, 1 } ->
+			case R of 
+				#request{} ->
+					RQ = R#request{ module = Module, args = Args },
+					Module:Fun(RQ);
+				#response{} ->
+					RS = R#response{ module = Module, args = Args },
+					Module:Fun(RS)
+			end;	
+		_ ->
+			#response{ status = 405 }
+	end;
+route(Method, { Module, Args }, R) ->			%% route request supplied function
+	io:format("routing to ~p:~p(~p)~n", [ Module, Method, Args ]),
+	Functions = Module:module_info(functions),
+	case proplists:lookup(Method,Functions) of
+		{ Fun, 1 } ->
+			case R of 
+				#request{} ->
+					RQ = R#request{ module = Module, args = Args },
+					Module:Fun(RQ);
+				#response{} ->
+					RS = R#response{ module = Module, args = Args },
+					Module:Fun(RS)
+			end;	
+		_ ->
+			#response{ status = 405 }
+	end.
+

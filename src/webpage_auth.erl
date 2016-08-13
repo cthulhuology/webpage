@@ -1,48 +1,24 @@
 -module(webpage_auth).
 -author({ "David J Goehrig", "dave@dloh.org" }).
 -copyright(<<"© 2016 David J Goehrig"/utf8>>).
--export([ get/1, add/3, remove/2, install/1, grant/2, revoke/2]).
+-export([ add/3, remove/2, install/1, grant/2, revoke/2]).
 
 -include("include/http.hrl").
 
 -record(user_auth, { token, user, email, active, paths = [] }).
 
--export([ get/1, post/1, put/1, delete/1, options/1, head/1, trace/1, connect/1 ]).
+-export([ auth/1 ]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Public API
 %
 
-get(Request = #request{}) ->
-	auth(Request).
-
-post(Request = #request{}) ->
-	auth(Request).
-
-put(Request = #request{}) ->
-	auth(Request).
-
-delete(Request = #request{}) ->
-	auth(Request).
-
-options(Request = #request{}) ->
-	auth(Request).
-
-trace(Request = #request{}) ->
-	auth(Request).
-
-connect(Request = #request{}) ->
-	auth(Request).
-
-head(Request = #request{}) ->
-	auth(Request).
-
 auth(Request = #request{ path = Path, headers = Headers }) ->
-	io:format("headers are ~p~n",[ Headers ]),
+	io:format("auth headers are ~p~n",[ Headers ]),
 	case proplists:get_value(<<"Authorization">>, Headers ) of
 		undefined ->
 			io:format("challenging~n"),
-			#response{ status = 401, headers = [{  <<"WWW-Authenticate">>,<<"Basic realm=\"webpage\"">> }]};
+			#response{ status = 401, headers = [{  <<"WWW-Authenticate">>,<<"Basic realm=\"webpage\"">> }, {<<"Content-Length">>, <<"0">> }]};
 		Authorization ->
 			F = fun() ->
 				{ ok, Salt } = application:get_env(webpage,salt),
@@ -55,10 +31,10 @@ auth(Request = #request{ path = Path, headers = Headers }) ->
 							true ->
 								Request#request{ headers = [ { <<"User">>, User},{<<"Email">>,Email } | Headers ] };
 							false ->
-								#response{ status = 401, headers = [{  <<"WWW-Authenticate">>,<<"Basic realm=\"webpage\"">> }]}
+								#response{ status = 401, headers = [{  <<"WWW-Authenticate">>,<<"Basic realm=\"webpage\"">> }, {<<"Content-Length">>, <<"0">> }]}
 						end;
 					_ ->
-						#response{ status = 401, headers = [{  <<"WWW-Authenticate">>,<<"Basic realm=\"webpage\"">> }]}
+						#response{ status = 401, headers = [{  <<"WWW-Authenticate">>,<<"Basic realm=\"webpage\"">> }, {<<"Content-Length">>, <<"0">> }]}
 				end
 			end,
 			mnesia:activity(transaction,F)		

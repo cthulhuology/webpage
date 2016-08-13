@@ -36,7 +36,8 @@ init(Webpage = #webpage{ socket = Listen }) ->
 			case ssl:ssl_accept(Socket,5000) of
 				ok ->
 					{ ok, Webpage#webpage{
-						socket = Socket
+						socket = Socket,
+						request = #request{ socket = Socket }
 					}};
 				{ error, Reason } ->
 					io:format("failed to make ssl connetion ~p~n", [ Reason ]),
@@ -54,6 +55,7 @@ handle_call(Message,_From,Webpage) ->
 
 handle_cast(Response = #response{},Webpage = #webpage{ socket = Socket }) ->
 	Bin = http:response(Response),
+	io:format("sending ~p~n", [ Bin ]),
 	ssl:send(Socket,Bin),
 	{ noreply, Webpage };
 
@@ -67,8 +69,9 @@ handle_info({ ssl, Socket, Data }, Webpage = #webpage{ request = Req, module = M
 		done ->
 			Response = erlang:apply(Module,Request#request.method,[ Request ]),
 			Bin = http:response(Response),
+			io:format("sending ~p~n", [ Bin ]),
 			ssl:send(Socket,Bin),
-			{ noreply, Webpage#webpage{ request = #request{} }};
+			{ noreply, Webpage#webpage{ request = #request{ socket = Socket } }};
 		_ ->
 			{ noreply, Webpage#webpage{ request = Request }}
 	end;
