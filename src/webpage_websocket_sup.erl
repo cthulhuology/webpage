@@ -12,13 +12,13 @@ init([]) ->
 
 client(Request) ->
 	io:format("starting child  ~p~n", [ Request ]),
-	supervisor:start_child(?MODULE, #{ 
+	supervisor:start_child(?MODULE, #{
 		id => uuid:id(),
 		start => { webpage_websocket, start_link, [ Request ]},
 		restart => temporary,
 		shutdown => brutal_kill,
 		type => worker,
-		modules => [ 
+		modules => [
 			webpage_websocket
 		]
 	}).

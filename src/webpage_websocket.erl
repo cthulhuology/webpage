@@ -8,7 +8,6 @@
 
 -include("../include/http.hrl").
 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Public Methods
 %%
@@ -144,7 +143,6 @@ handshake(Headers) ->
 			{ <<"Connection">>, <<"Upgrade">> },
 			{ <<"Sec-WebSocket-Accept">>, Secret }]
 	}.
-
 
 %% Frame a Datagram with the appropriate Opcode, Length, and Mask
 
