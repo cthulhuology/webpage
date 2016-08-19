@@ -1,7 +1,7 @@
 -module(webpage_auth).
 -author({ "David J Goehrig", "dave@dloh.org" }).
 -copyright(<<"© 2016 David J Goehrig"/utf8>>).
--export([ add/3, remove/2, install/1, grant/2, revoke/2]).
+-export([ add/3, remove/2, install/1, grant/2, revoke/2, users/0, token/1]).
 
 -include("include/http.hrl").
 
@@ -40,7 +40,12 @@ auth(Request = #request{ path = Path, headers = Headers }) ->
 			mnesia:activity(transaction,F)		
 	end.		
 
-
+add(User,Email,Password) when is_list(User) ->
+	add(list_to_binary(User),Email,Password);
+add(User,Email,Password) when is_list(Email) ->
+	add(User,list_to_binary(Email),Password);
+add(User,Email,Password) when is_list(Password) ->
+	add(User,Email,list_to_binary(Password));
 add(User,Email,Password) ->
 	{ ok, Salt } = application:get_env(webpage,salt),
 	Auth = base64:encode(<< User/binary,":",Password/binary>>),
@@ -51,6 +56,10 @@ add(User,Email,Password) ->
 	end,
 	mnesia:activity(transaction,F).
 
+remove(User,Email) when is_list(User) ->
+	remove(list_to_binary(User),Email);
+remove(User,Email) when is_list(Email) ->
+	remove(User,list_to_binary(Email));
 remove(User,Email) ->
 	F = fun() ->
 		case mnesia:match_object(#user_auth{ user = User, email = Email, token = '_', active = '_', paths = '_' }) of
@@ -61,6 +70,8 @@ remove(User,Email) ->
 	end,
 	mnesia:activity(transaction,F).
 
+grant(User,Pattern) when is_list(User) ->
+	grant(list_to_binary(User),Pattern);
 grant(User,Pattern) ->
 	F = fun() ->
 		case mnesia:match_object(#user_auth{ user = User, email = '_', token = '_', active = true, paths = '_' }) of
@@ -71,12 +82,37 @@ grant(User,Pattern) ->
 	end,
 	mnesia:activity(transaction,F).
 
+revoke(User,Pattern) when is_list(User) ->
+	revoke(list_to_binary(User), Pattern);
 revoke(User,Pattern) ->
 	F = fun() ->
 		case mnesia:match_object(#user_auth{ user = User, email = '_', token = '_', active = true, paths = '_' }) of
 			[] -> ok;
 			[ Auth = #user_auth{ paths = Paths }] ->
 				mnesia:write(Auth#user_auth{ paths = lists:delete(Pattern,Paths) })
+		end
+	end,
+	mnesia:activity(transaction,F).
+
+users() ->
+	F = fun() ->
+		case mnesia:match_object(#user_auth{ user = '_', email = '_', token = '_', active = true, paths = '_' }) of
+			Users when is_list(Users) ->
+				[ User || #user_auth{ user = User } <- Users ];
+			_ -> []	
+		end
+	end,
+	mnesia:activity(transaction,F).
+
+token(User) when is_list(User) ->
+	token(list_to_binary(User));
+token(User) ->
+	F = fun() ->
+		case mnesia:match_object(#user_auth{ user = User, email = '_', token = '_', active = true, paths = '_' }) of
+			[ #user_auth{ token = Token }] ->
+				Token;
+			_ ->
+				undefined
 		end
 	end,
 	mnesia:activity(transaction,F).

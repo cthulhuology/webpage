@@ -2,7 +2,7 @@
 -author({ "David J Goehrig", "dave@dloh.org" }).
 -copyright(<<"© 2016 David J Goehrig"/utf8>>).
 -behavior(gen_server).
--export([ start/2, stop/1, server/2 ]).
+-export([ start/0, start_link/2, stop/1, server/2 ]).
 -export([ init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3 ]).
 
 -include("include/http.hrl").
@@ -16,7 +16,11 @@
 server(Module,Port) ->
 	webpage_sup:server(Module,Port).
 
-start(Socket,Module) ->
+
+start() ->
+	application:ensure_all_started(webpage).
+
+start_link(Socket,Module) ->
 	gen_server:start_link(?MODULE, #webpage{ 
 		socket = Socket,
 		module = Module,

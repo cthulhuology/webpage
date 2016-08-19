@@ -61,7 +61,7 @@ handle_call(Message,_From,Server) ->
 	{ reply, ok, Server }.
 
 handle_cast(accept,Server = #webpage_server{ module = Module, socket = Socket, port = Port }) ->
-	webpage:start(Socket,Module),
+	webpage:start_link(Socket,Module),
 	accept(Port),
 	{ noreply, Server };
 

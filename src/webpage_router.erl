@@ -4,7 +4,7 @@
 -behavior(gen_server).
 
 %% router behavior
--export([ start_link/0, stop/0, add/2, remove/1, install/1 ]).
+-export([ start_link/0, stop/0, add/2, remove/1, install/1, paths/0, route/1 ]).
 
 %% http method mapping behavior
 -export([ get/1, post/1, put/1, delete/1, options/1, head/1, trace/1, connect/1 ]).
@@ -57,10 +57,16 @@ add(Path,Routes) ->
 remove(Path) ->
 	gen_server:cast(?MODULE,{remove,Path}).
 
+paths() ->
+	gen_server:call(?MODULE, paths).
+
+route(Path) ->
+	gen_server:call(?MODULE, { route, Path }).
+
 install(Nodes) ->
 	rpc:multicall(Nodes,application,stop, [ mnesia ]),
 	Database = code:priv_dir(webpage),
-	application:set_env(mnesia,dir, Database),
+	rpc:multicall(Nodes,application,set_env, [ mnesia,dir,Database]),
 	case mnesia:delete_schema(Nodes) of
 		ok ->
 			io:format("removed old db in ~p~n", [ Database ]);
@@ -90,17 +96,23 @@ init([]) ->
 	Paths = mnesia:activity(transaction,F),	
 	{ ok, #webpage_router{ paths = Paths }}.
 
+handle_call(paths,_From,State = #webpage_router{ paths = Paths }) ->
+	{ reply, proplists:get_keys(Paths), State };
+
+handle_call({ route, Path }, _From, State = #webpage_router{ paths = Paths }) ->
+	{ reply, webpage_path:scan(Path,Paths), State };
+
 handle_call(stop,_From,State) ->
 	{ stop, stopped, State };
 
 handle_call({dispatch,Method,Path,Request}, _From, State = #webpage_router{ paths = Paths }) ->
-	case proplists:get_value(Path,Paths) of
+	case webpage_path:scan(Path,Paths) of
 		Routes when is_list(Routes) ->
-			io:format("Routing to ~p~n", [ Routes ]),
+			io:format("Routing ~p ~p to ~p~n", [ Method, Path, Routes ]),
 			Res = lists:foldl(fun(Route,R) -> route(Method,Route,R) end, Request, Routes ),
 			{ reply, Res, State };
-		Any ->
-			io:format("Got invalid route ~p~n", [ Any ]),
+		_ ->
+			io:format("Got invalid route ~p~n", [ Path ]),
 			{ reply, #response{ status = 404, body= <<"Not Found">> }, State }
 	end;
 

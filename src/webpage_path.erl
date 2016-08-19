@@ -2,7 +2,7 @@
 -author({ "David J Goehrig", "dave@dloh.org" }).
 -copyright(<<"© 2016 David J Goehrig"/utf8>>).
 
--export([ match/2  ]).
+-export([ match/2, scan/2 ]).
 
 match(Path,Pattern) ->
 	A = string:tokens(Path,"/"),
@@ -21,3 +21,11 @@ compare([HA|TA],[HB|TB]) ->
 		false -> false
 	end.
 		
+%% searches a proplist for a path match
+scan(_Path, []) ->
+	none;
+scan(Path, [ { K, V} | T ]) ->
+	case match(Path,K) of
+		true -> V;
+		false -> scan(Path,T)
+	end.

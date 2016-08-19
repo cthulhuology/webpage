@@ -95,7 +95,6 @@ parse_headers( _Data, [{ Offset, _L}| _Matches], Offset, Acc ) ->
 	Acc;
 parse_headers( Data, [{X,L}|Matches], Offset, Acc ) ->
 	Bin = binary:part(Data,Offset,X-Offset), 
-	io:format("parsing header at ~p~n", [Bin]),
 	case binary:split(Bin,<<": ">>) of
 		[ Key, Value ]  ->
 		  	parse_headers(Data, Matches, X+L, [{ Key, Value }|Acc]);
