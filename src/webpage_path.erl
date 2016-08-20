@@ -2,11 +2,14 @@
 -author({ "David J Goehrig", "dave@dloh.org" }).
 -copyright(<<"© 2016 David J Goehrig"/utf8>>).
 
--export([ match/2, scan/2 ]).
+-export([ match/2, scan/2, components/1 ]).
+
+components(Path) ->
+	string:tokens(Path,"/").
 
 match(Path,Pattern) ->
-	A = string:tokens(Path,"/"),
-	B = string:tokens(Pattern,"/"),
+	A = components(Path), 
+	B = components(Pattern),
 	compare(A,B).
 
 %% a simple wildcard * match compare
