@@ -61,8 +61,12 @@ handle_call({ get, Path }, _From, State) ->
 			mnesia:activity(transaction,F);
 		[ Bucket, Guid ] ->
 			F = fun() ->
-				[ #rest{ object = Body } ] = mnesia:read(rest, Bucket ++ "/" ++ Guid, read),
-				#response{ status = 200, headers = [ {<<"Content-Length">>, integer_to_binary(byte_size(Body))}], body = Body }
+				case mnesia:read(rest, Bucket ++ "/" ++ Guid, read) of
+					[ #rest{ object = Body } ] ->
+						#response{ status = 200, headers = [ {<<"Content-Length">>, integer_to_binary(byte_size(Body))}], body = Body };
+					_ ->
+						#response{ status = 404 } 
+				end
 			end,
 			mnesia:activity(transaction,F);
 		[ Bucket | Filters ] ->
@@ -86,7 +90,7 @@ handle_call({ post, Path, Body }, _From, State) ->
 				#response{
 					status = 201, 
 					headers = [ 
-						{ <<"Location">>, list_to_binary("/" ++ Path) }, 
+						{ <<"Location">>, list_to_binary("/" ++ Bucket ++ "/" ++ Guid) }, 
 						{ <<"Content-Length">>, integer_to_binary(byte_size(JSON)) }
 					], 
 					body = JSON }

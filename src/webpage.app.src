@@ -17,7 +17,8 @@
 		webpage_router,
 		webpage_logger,	
 		webpage_file,
-		webpage_server
+		webpage_server,
+		webpage_rest
 	]},
 	{mod, { webpage_app, []}},
 	{env, [

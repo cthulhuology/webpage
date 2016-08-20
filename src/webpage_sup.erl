@@ -27,6 +27,14 @@ init([]) ->
 		type => supervisor,
 		modules => [
 			webpage_websocket_sup
+		]},
+		#{ id => webpage_rest,
+		start => { webpage_rest, start_link, [] },
+		restart => permanent,
+		shutdown => brutal_kill,
+		type => supervisor,
+		modules => [
+			webpage_rest
 		]}
 		| Servers ] }}.
 
