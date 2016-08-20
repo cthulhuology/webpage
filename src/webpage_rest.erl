@@ -82,7 +82,14 @@ handle_call({ post, Path, Body }, _From, State) ->
 			F = fun() ->
 				Guid = uuid:to_string(uuid:v4()),
 				ok = mnesia:write(#rest{ guid = Bucket ++ "/" ++ Guid, bucket = Bucket, object = Body }),
-				#response{ status = 201, headers = [ { <<"Location">>, list_to_binary("/" ++ Path) } ], body = json:encode(Guid) }
+				JSON = json:encode(list_to_binary(Guid)),
+				#response{
+					status = 201, 
+					headers = [ 
+						{ <<"Location">>, list_to_binary("/" ++ Path) }, 
+						{ <<"Content-Length">>, integer_to_binary(byte_size(JSON)) }
+					], 
+					body = JSON }
 			end,
 			mnesia:activity(transaction,F);
 		_ ->
