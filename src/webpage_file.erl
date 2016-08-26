@@ -44,7 +44,7 @@ add(Path,Filename,Mime) ->
 		mnesia:write(#file_paths{ path = Path, filename = Filename, mime = Mime })
 	end,
 	ok = mnesia:activity(transaction,F),
-	webpage_router:add("/",webpage_file).
+	webpage_router:add("/", [ webpage_file, []]).
 
 remove(Path) ->
 	F = fun() ->

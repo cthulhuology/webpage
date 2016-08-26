@@ -135,6 +135,7 @@ handle_call({ delete, Path }, _From, State) ->
 				#response{ status = 204 }
 			end,
 			mnesia:activity(transaction,F);
+		[ Bucket | Filters ] ->
 		_ -> 
 			#response{ status = 403 }
 	end,

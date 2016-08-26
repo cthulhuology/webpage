@@ -4,7 +4,7 @@
 -behavior(gen_server).
 
 %% router behavior
--export([ start_link/0, stop/0, add/2, remove/1, install/1, paths/0, route/1 ]).
+-export([ start_link/0, stop/0, add/2, remove/1, paths/0, route/1 ]).
 
 %% http method mapping behavior
 -export([ get/1, post/1, put/1, delete/1, options/1, head/1, trace/1, connect/1 ]).
@@ -13,9 +13,11 @@
 -export([ code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1,
 	terminate/2 ]).
 
+%% import/export
+-export([ json_to_route/1, route_to_json/1, load_route/1 ]).
+
 -include("include/http.hrl").
 -record(webpage_router, { paths = []}).
--record(webpage_routes, { path, routes= [], active = true }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Public API
@@ -63,38 +65,14 @@ paths() ->
 route(Path) ->
 	gen_server:call(?MODULE, { route, Path }).
 
-install(Nodes) ->
-	rpc:multicall(Nodes,application,stop, [ mnesia ]),
-	Database = code:priv_dir(webpage),
-	rpc:multicall(Nodes,application,set_env, [ mnesia,dir,Database]),
-	case mnesia:delete_schema(Nodes) of
-		ok ->
-			io:format("removed old db in ~p~n", [ Database ]);
-		{ error, Reason } ->
-			io:format("could not remove old db in ~p because ~p~n", [ Database, Reason ])
-	end,
-	ok = mnesia:create_schema(Nodes),
-	rpc:multicall(Nodes,application,start,[ mnesia ]),
-	{ atomic, ok } = mnesia:create_table(webpage_routes, [
-		{ attributes, record_info(fields,webpage_routes) },
-		{ disc_copies, Nodes }]),
-	rpc:multicall(Nodes,application,stop, [ mnesia ]),
-	ok.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Private API
 %
 
 init([]) ->
-	application:set_env(mnesia,dir, code:priv_dir(webpage)),
-	application:ensure_started(mnesia),
-	mnesia:wait_for_tables([ webpage_routes ], 5000),	 
-	F = fun() ->
-		Paths = mnesia:match_object(#webpage_routes{ path = '_', routes = '_', active = true }),
-		[ { Path, Routes } ||  #webpage_routes{ path = Path, routes = Routes } <- Paths ]
-	end,
-	Paths = mnesia:activity(transaction,F),	
-	{ ok, #webpage_router{ paths = Paths }}.
+	Paths = json:decode(webpage_rest:get("/routes")),
+	Routes = [ load_route(Path) || Path <- Paths ],
+	{ ok, #webpage_router{ paths = Routes }}.
 
 handle_call(paths,_From,State = #webpage_router{ paths = Paths }) ->
 	{ reply, proplists:get_keys(Paths), State };
@@ -122,11 +100,7 @@ handle_call(Message,_From,State) ->
 
 
 handle_cast({ add, Path, Routes }, State = #webpage_router{ paths = Paths }) ->
-	F = fun() ->
-		mnesia:delete(webpage_routes, Path, write),
-		mnesia:write(#webpage_routes{ path = Path, routes = Routes, active = true })
-	end,
-	mnesia:activity(transaction,F),
+	webpage_rest:post({ Path, json:encode( [ { <<"path">>, list_to_binary(Path) }, { <<"routes">>, Routes }])}),
 	{ noreply, State#webpage_router{ paths = [ { Path, Routes } | proplists:delete(Path,Paths) ]}};	
 
 handle_cast({ remove, Path }, State = #webpage_router{ paths = Paths }) ->
@@ -150,7 +124,7 @@ code_change(_Old,_Extra,State) ->
 terminate(_Reason,_State) ->
 	ok.
 
-route(_Method, { Module, Function, Args },R) ->		%% route defined function
+route(_Method, [ Module, Function, Args ],R) ->		%% route defined function
 	io:format("routing to ~p:~p(~p)~n", [ Module, Function, Args ]),
 	Functions = Module:module_info(functions),
 	case proplists:lookup(Function,Functions) of
@@ -166,7 +140,7 @@ route(_Method, { Module, Function, Args },R) ->		%% route defined function
 		_ ->
 			#response{ status = 405 }
 	end;
-route(Method, { Module, Args }, R) ->			%% route request supplied function
+route(Method, [ Module, Args ], R) ->			%% route request supplied function
 	io:format("routing to ~p:~p(~p)~n", [ Module, Method, Args ]),
 	Functions = Module:module_info(functions),
 	case proplists:lookup(Method,Functions) of
@@ -182,4 +156,22 @@ route(Method, { Module, Args }, R) ->			%% route request supplied function
 		_ ->
 			#response{ status = 405 }
 	end.
+
+%% decode a json array into a route
+json_to_route([]) ->
+	[];
+json_to_route(JSON) when is_binary(JSON) ->
+	[ json_to_route(Route) || Route <- json:decode(JSON) ];
+json_to_route([ Module, Args ]) ->
+	[ list_to_atom(binary_to_list(Module)), json_to_route(Args) ];	
+json_to_route([ Module, Function, Args ]) ->
+	[ list_to_atom(binary_to_list(Module)), list_to_atom(binary_to_list(Function)), json_to_route(Args) ].
+
+%% encode a route into json
+route_to_json(Route) ->
+	json:encode(Route).
+
+load_route(Path) ->
+	O = json:decode(webpage_rest:get(Path)), 
+	{ binary_to_list(proplists:get_value(<<"path">>,O)), json_to_route(proplists:get_value(<<"routes">>,O))}.
 
