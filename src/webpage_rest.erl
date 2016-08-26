@@ -5,6 +5,7 @@
 -export([ start_link/0, stop/0, install/1, get/1, put/1, post/1, delete/1 ]).
 -export([ code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1,
 	terminate/2 ]).
+-export([ filter_objects/2]).
 
 -include("include/http.hrl").
 
@@ -54,7 +55,6 @@ handle_call({ get, Path }, _From, State) ->
 			F = fun() ->
 				Objects = mnesia:match_object(#rest{ guid = '_', bucket = Bucket, object = '_' }),
 				Guids = [ list_to_binary(Guid) || #rest{ guid = Guid } <- Objects ],
-				io:format("got guids ~p~n", [ Guids ]),
 				JSON = json:encode(Guids),
 				#response{ status = 200, headers = [ {<<"Content-Length">>, integer_to_binary(byte_size(JSON))}], body = JSON }
 			end,
@@ -72,7 +72,8 @@ handle_call({ get, Path }, _From, State) ->
 		[ Bucket | Filters ] ->
 			F = fun() ->
 				Objects = mnesia:match_object(#rest{ guid = '_', bucket = Bucket, object = '_' }),
-				filter_objects(Objects, Filters)
+				JSON = json:encode(filter_objects(Objects, list_to_filters(Filters))),
+				#response{ status = 200, headers = [{<<"Content-Length">>,integer_to_binary(byte_size(JSON)) }], body = JSON }
 			end,
 			mnesia:activity(transaction,F);
 		_ ->
@@ -155,6 +156,23 @@ install(Nodes) ->
 		{ disc_copies, Nodes }]),
 	rpc:multicall(Nodes,application,stop, [ mnesia ]).
 
-filter_objects(Objects,_Filters) ->
-	Objects.
+filter_objects(Objects,Filters) ->
+	lists:filter(fun(O) ->
+		lists:foldl(fun ({K,V},B) ->
+			B and (V =:= proplists:get_value(K,O))
+		end, true, Filters)
+	end,[ json:decode(Object) || #rest{ object = Object } <- Objects]).
+
+
+to_json(Value) ->
+	json:decode(list_to_binary(Value)).
+
+list_to_filters([],Acc) ->
+	Acc;
+list_to_filters([ K, V | T ], Acc) ->
+	list_to_filters(T, [ { list_to_binary(K),to_json(V) } | Acc ]).
+
+list_to_filters(List) ->
+	list_to_filters(List,[]).
+
 
