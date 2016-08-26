@@ -21,26 +21,38 @@ start_link() ->
 
 stop() ->
 	gen_server:call(?MODULE,stop).
-
 get(#request{ path = Path}) ->
 	gen_server:call(?MODULE, { get, Path });
 get(Res = #response{}) ->
-	Res.
+	Res;
+get(Path) when is_list(Path) ->
+	#response{ body = Object } = gen_server:call(?MODULE, { get, Path }),
+	Object.
 
 put(#request{ path = Path, body = Body }) ->
 	gen_server:call(?MODULE, { put, Path, Body });
 put(Res = #response{}) ->
-	Res.
+	Res;
+put({Path,Body}) when is_list(Path), is_binary(Body) ->
+	#response{ body = Object } = gen_server:call(?MODULE, { put, Path, Body }),
+	Object.
 
 post(#request{ path = Path, body = Body }) ->
 	gen_server:call(?MODULE, { post, Path, Body });
 post(Res = #response{}) ->
-	Res.
+	Res;
+post({Path, Body }) ->
+	#response{ body = Object } = gen_server:call(?MODULE, { post, Path, Body }),
+	Object.	
 
 delete(#request{ path = Path }) ->
 	gen_server:call(?MODULE, { delete, Path });
 delete(Res = #response{}) ->
-	Res.
+	Res;
+delete(Path) when is_list(Path) ->
+	#response{ body = Object } = gen_server:call(?MODULE, { delete, Path }),
+	Object.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Private API
@@ -164,8 +176,18 @@ filter_objects(Objects,Filters) ->
 	end,[ json:decode(Object) || #rest{ object = Object } <- Objects]).
 
 
+url_decode([], Acc) ->
+	lists:reverse(Acc);
+url_decode([ $%, X, Y | T ], Acc) ->
+	url_decode( T, [ list_to_integer([X,Y],16) | Acc ]);
+url_decode([ $+ | T ], Acc) ->
+	url_decode(T, [ 32 | Acc ]); 
+url_decode([ X | T ], Acc ) ->
+	url_decode(T, [ X | Acc ]).
+
 to_json(Value) ->
-	json:decode(list_to_binary(Value)).
+	V2 = url_decode(Value,[]),
+	json:decode(list_to_binary(V2)).
 
 list_to_filters([],Acc) ->
 	Acc;
@@ -174,5 +196,4 @@ list_to_filters([ K, V | T ], Acc) ->
 
 list_to_filters(List) ->
 	list_to_filters(List,[]).
-
 
