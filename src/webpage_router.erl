@@ -71,11 +71,11 @@ route(Path) ->
 
 init([]) ->
 	Paths = json:decode(webpage_rest:get("/routes")),
-	Routes = [ load_route(Path) || Path <- Paths ],
-	{ ok, #webpage_router{ paths = Routes }}.
+	Routes = [ load_route("/" ++ binary:bin_to_list(Path)) || Path <- Paths ],
+	{ ok, #webpage_router{ paths = lists:reverse(Routes) }}.
 
 handle_call(paths,_From,State = #webpage_router{ paths = Paths }) ->
-	{ reply, proplists:get_keys(Paths), State };
+	{ reply, webpage_path:order(Paths), State };
 
 handle_call({ route, Path }, _From, State = #webpage_router{ paths = Paths }) ->
 	{ reply, webpage_path:scan(Path,Paths), State };
@@ -100,12 +100,12 @@ handle_call(Message,_From,State) ->
 
 
 handle_cast({ add, Path, Routes }, State = #webpage_router{ paths = Paths }) ->
-	webpage_rest:post({ Path, json:encode( [ { <<"path">>, list_to_binary(Path) }, { <<"routes">>, Routes }])}),
+	io:format("~p~n", [ webpage_rest:post({ "/routes", json:encode( [ { <<"path">>, list_to_binary(Path) }, { <<"routes">>, Routes }])}) ]),
 	{ noreply, State#webpage_router{ paths = [ { Path, Routes } | proplists:delete(Path,Paths) ]}};	
 
 handle_cast({ remove, Path }, State = #webpage_router{ paths = Paths }) ->
 	F = fun() ->
-		mnesia:delete(webpage_routes, Path, write)
+		webpage_rest:delete("/routes/path/" ++ url:encode(Path))
 	end,
 	mnesia:activity(transaction,F),
 	{ noreply, State#webpage_router{ paths = proplists:delete(Path,Paths) }};	

@@ -185,17 +185,8 @@ filter_objects(Objects,Filters) ->
 		end, true, Filters)
 	end, Objects).
 
-url_decode([], Acc) ->
-	lists:reverse(Acc);
-url_decode([ $%, X, Y | T ], Acc) ->
-	url_decode( T, [ list_to_integer([X,Y],16) | Acc ]);
-url_decode([ $+ | T ], Acc) ->
-	url_decode(T, [ 32 | Acc ]); 
-url_decode([ X | T ], Acc ) ->
-	url_decode(T, [ X | Acc ]).
-
 to_json(Value) ->
-	V2 = url_decode(Value,[]),
+	V2 = url:decode(Value),
 	json:decode(list_to_binary(V2)).
 
 list_to_filters([],Acc) ->
