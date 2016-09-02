@@ -84,7 +84,8 @@ handle_call({ get, Path }, _From, State) ->
 		[ Bucket | Filters ] ->
 			F = fun() ->
 				Objects = mnesia:match_object(#rest{ guid = '_', bucket = Bucket, object = '_' }),
-				JSON = json:encode(filter_objects(Objects, list_to_filters(Filters))),
+				Matching = filter_objects(Objects, list_to_filters(Filters)),
+				JSON = json:encode([ json:decode(O) || #rest{ object = O } <- Matching ]),
 				#response{ status = 200, headers = [{<<"Content-Length">>,integer_to_binary(byte_size(JSON)) }], body = JSON }
 			end,
 			mnesia:activity(transaction,F);
@@ -136,6 +137,13 @@ handle_call({ delete, Path }, _From, State) ->
 			end,
 			mnesia:activity(transaction,F);
 		[ Bucket | Filters ] ->
+			F = fun() ->
+				Objects = mnesia:match_object(#rest{ guid = '_', bucket = Bucket, object = '_' }),
+				Matching = filter_objects(Objects, list_to_filters(Filters)),
+				[ mnesia:delete(rest, Guid, write) || #rest{ guid = Guid } <- Matching ],
+				#response{ status = 204 }
+			end,
+			mnesia:activity(transaction,F);
 		_ -> 
 			#response{ status = 403 }
 	end,
@@ -170,12 +178,12 @@ install(Nodes) ->
 	rpc:multicall(Nodes,application,stop, [ mnesia ]).
 
 filter_objects(Objects,Filters) ->
-	lists:filter(fun(O) ->
+	lists:filter(fun(#rest{ object = Object }) ->
+		O = json:decode(Object),	
 		lists:foldl(fun ({K,V},B) ->
 			B and (V =:= proplists:get_value(K,O))
 		end, true, Filters)
-	end,[ json:decode(Object) || #rest{ object = Object } <- Objects]).
-
+	end, Objects).
 
 url_decode([], Acc) ->
 	lists:reverse(Acc);
