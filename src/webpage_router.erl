@@ -104,10 +104,7 @@ handle_cast({ add, Path, Routes }, State = #webpage_router{ paths = Paths }) ->
 	{ noreply, State#webpage_router{ paths = [ { Path, Routes } | proplists:delete(Path,Paths) ]}};	
 
 handle_cast({ remove, Path }, State = #webpage_router{ paths = Paths }) ->
-	F = fun() ->
-		webpage_rest:delete("/routes/path/" ++ url:encode(Path))
-	end,
-	mnesia:activity(transaction,F),
+	webpage_rest:delete("/routes/path/" ++ url:encode(Path)),
 	{ noreply, State#webpage_router{ paths = proplists:delete(Path,Paths) }};	
 
 handle_cast(Message,State) ->
