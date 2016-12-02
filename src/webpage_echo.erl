@@ -3,10 +3,10 @@
 -export([ echo/3 ]).
 
 echo(Pid,Path,connected) ->
-	io:format("From ~p at ~p connected~n", [ Pid, Path ]);
+	error_logger:info_msg("From ~p at ~p connected", [ Pid, Path ]);
 echo(Pid,Path,closed) ->
-	io:format("From ~p at ~p closed~n", [ Pid, Path ]);
+	error_logger:info_msg("From ~p at ~p closed", [ Pid, Path ]);
 echo(Pid,Path,Data) ->
-	io:format("From ~p at ~p got ~p~n", [ Pid, Path, Data ]),
+	error_logger:info_msg("From ~p at ~p got ~p", [ Pid, Path, Data ]),
 	Pid ! Data.
 

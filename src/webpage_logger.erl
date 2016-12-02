@@ -29,7 +29,7 @@ get(Req = #request{}) ->
 	resp(Req);
 
 get(Resp = #response{}) ->
-	io:format("forwarding response ~p~n", [ Resp ]),
+	error_logger:info_msg("forwarding response ~p", [ Resp ]),
 	Resp.
 
 post(Req) ->

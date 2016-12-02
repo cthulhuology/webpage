@@ -39,32 +39,33 @@ init(Webpage = #webpage{ socket = Listen }) ->
 		{ ok, Socket } ->
 			case ssl:ssl_accept(Socket,1000) of
 				ok ->
+					{ PeerIP, PeerPort } = inet:peername(Socket),
+					error_logger:info_msg("Socket connection from ~p:~p", [ PeerIP, PeerPort ]),
 					{ ok, Webpage#webpage{
 						socket = Socket,
 						request = #request{ socket = Socket }
 					}};
 				{ error, Reason } ->
-					io:format("failed to make ssl connection ~p~n", [ Reason ]),
+					error_logger:error_msg("SSL connection failed: ~p", [ Reason ]),
 					{ stop, Reason }
 			end;
 		{ error, Reason } ->
-			io:format("failed to accept socket ~p~n", [ Reason ]),
+			error_logger:error_msg("Socket accept failed: ~p", [ Reason ]),
 			{ stop, Reason }
 	end.
 	
 handle_call(Message,_From,Webpage) ->
-	io:format("Unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("Unknown message: ~p", [ Message ]),
 	{ reply, ok, Webpage }.
 
 
 handle_cast(Response = #response{},Webpage = #webpage{ socket = Socket }) ->
 	Bin = http:response(Response),
-	io:format("sending ~p~n", [ Bin ]),
 	ssl:send(Socket,Bin),
 	{ noreply, Webpage };
 
 handle_cast(Message,Webpage) ->
-	io:format("Unknown message ~p~n", [ Message ]),
+	error_loggger:error_msg("Unknown message: ~p", [ Message ]),
 	{ noreply, Webpage }.
 
 handle_info({ ssl, Socket, Data }, Webpage = #webpage{ request = Req, module = Module }) ->
@@ -73,7 +74,6 @@ handle_info({ ssl, Socket, Data }, Webpage = #webpage{ request = Req, module = M
 		done ->
 			Response = erlang:apply(Module,Request#request.method,[ Request ]),
 			Bin = http:response(Response),
-			io:format("sending ~p~n", [ Bin ]),
 			ssl:send(Socket,Bin),
 			{ noreply, Webpage#webpage{ request = #request{ socket = Socket } }};
 		_ ->
@@ -81,11 +81,11 @@ handle_info({ ssl, Socket, Data }, Webpage = #webpage{ request = Req, module = M
 	end;
 
 handle_info({ ssl_closed, _Socket}, Webpage = #webpage{}) ->
-	io:format("connection closed~n"),
+	error_logger:info_msg("connection closed"),
 	{ stop, normal, Webpage };
 
 handle_info(Message,Webpage) ->
-	io:format("Unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("Unknown message: ~p", [ Message ]),
 	{ noreply, Webpage }.
 
 terminate(_Reason,#webpage{ socket = Socket }) ->

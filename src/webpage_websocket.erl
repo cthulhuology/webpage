@@ -26,13 +26,12 @@ stop(WebSocket) ->
 
 %% returns true if the request is a websocket request
 get(Request = #request{ headers = Headers }) ->
-	io:format("got headers ~p~n", [ Headers ]),
 	case proplists:get_value(<<"Sec-WebSocket-Version">>,Headers) of
 		<<"13">> -> 
 			webpage_websocket_sup:client(Request),
 			handshake(Headers);
-		_Any ->
-			io:format("websocket protocol not supported~n"),
+		Any ->
+			error_logger:error_msg("Websocket protocol not supported: ~p", [ Any ]),
 			#response{ status = 400 }
 	end;
 
@@ -42,7 +41,8 @@ get(Response = #response{}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% gen_server methods
 init(Request = #request{ socket = Socket, args = [ Module, Function, Args ], path = Path, body = Data }) ->
-	io:format("websocket started on ~p~n", [ Path ]),
+	{ PeerIP, PeerPort } = inet:peername(Socket),
+	error_logger:info_msg("Websocket started on ~p, from ~p:~p", [ Path, PeerIP, PeerPort ]),
 	ok = ssl:controlling_process(Socket,self()),
 	spawn(Module,Function,[self(),Path,connected]),
 	{ ok, #websocket{ 
@@ -54,14 +54,14 @@ init(Request = #request{ socket = Socket, args = [ Module, Function, Args ], pat
 		state = { wait, Data, [] }}}.
 
 handle_call(Message,_From,WebSocket) ->
-	io:format("unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("Unknown message ~p", [ Message ]),
 	{ reply, ok, WebSocket }.
 	
 handle_cast( stop, WebSocket ) ->
 	{ stop, normal, WebSocket };
 
 handle_cast({ message, Data }, WebSocket = #websocket{ module = Module, function = Function, request = #request{ path = Path }}) ->	
-	io:format("Calling ~p:~p with ~p~n", [ Module, Function, Data ]),
+	error_logger:info_msg("Message to ~p:~p(~p)", [ Module, Function, Data ]),
 	spawn(Module,Function,[ self(), Path, Data ] ),
 	{ noreply, WebSocket#websocket{ data = [] }};
 
@@ -77,7 +77,7 @@ handle_cast(pong,WebSocket) ->
 	{ noreply, WebSocket };
 
 handle_cast({ unknown, Any }, WebSocket) ->
-	io:format("Unknown message ~p~n", [ Any ]),
+	error_logger:error_msg("Unknown message ~p", [ Any ]),
 	{ stop, unknown_message, WebSocket };
 
 handle_cast(close, WebSocket) ->
@@ -124,7 +124,7 @@ frame(Data,Opcode,Masked) when is_binary(Data) ->
 	Len = iolist_size(Data),
 	case Masked of	
 		true -> 
-			Mask = crypto:rand_bytes(4),
+			Mask = crypto:strong_rand_bytes(4),
 			framed(mask(Data,Mask), Opcode, Mask, Len);
 		_ -> 
 			framed(Data, Opcode, Len)
@@ -213,7 +213,7 @@ unframe({ parse, <<F:1,_R1:1,_R2:1,_R3:1,Opcode:4,0:1,PayLen:7,Data/binary>>, Pa
 
 % wait for more data, because we can't parse a frame
 unframe({ parse, Data,Payloads}) ->
-	io:format("unframe error ~p~n", [ Data ]),
+	error_logger:error_msg("Websocket unframe error ~p", [ Data ]),
 	{ wait, Data , Payloads };
 
 % 16bit length for masked

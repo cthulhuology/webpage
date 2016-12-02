@@ -86,22 +86,20 @@ handle_call(stop,_From,State) ->
 handle_call({dispatch,Method,Path,Request}, _From, State = #webpage_router{ paths = Paths }) ->
 	case webpage_path:scan(Path,Paths) of
 		Routes when is_list(Routes) ->
-			io:format("Routing ~p ~p to ~p~n", [ Method, Path, Routes ]),
 			Res = lists:foldl(fun(Route,R) -> route(Method,Route,R) end, Request, Routes),
-			io:format("Result ~p~n", [ Res ]),
 			{ reply, Res, State };
 		_ ->
-			io:format("Got invalid route ~p~n", [ Path ]),
+			error_logger:info_msg("Route failed: ~p", [ Path ]),
 			{ reply, #response{ status = 404, body= <<"Not Found">> }, State }
 	end;
 
 handle_call(Message,_From,State) ->
-	io:format("[webpage_router] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("Unknown message ~p", [ Message ]),
 	{ reply, #response{ status = 405 }, State }.
 
 
 handle_cast({ add, Path, Routes }, State = #webpage_router{ paths = Paths }) ->
-	io:format("~p~n", [ webpage_rest:post({ "/routes", json:encode( [ { <<"path">>, list_to_binary(Path) }, { <<"routes">>, Routes }])}) ]),
+	webpage_rest:post({ "/routes", json:encode( [ { <<"path">>, list_to_binary(Path) }, { <<"routes">>, Routes }])}),
 	{ noreply, State#webpage_router{ paths = [ { Path, Routes } | proplists:delete(Path,Paths) ]}};	
 
 handle_cast({ remove, Path }, State = #webpage_router{ paths = Paths }) ->
@@ -109,11 +107,11 @@ handle_cast({ remove, Path }, State = #webpage_router{ paths = Paths }) ->
 	{ noreply, State#webpage_router{ paths = proplists:delete(Path,Paths) }};	
 
 handle_cast(Message,State) ->
-	io:format("[webpage_router] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("Unknown message ~p", [ Message ]),
 	{ noreply, State }.
 
 handle_info(Message,State) ->
-	io:format("[webpage_router] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("Unknown message ~p", [ Message ]),
 	{ noreply, State }.
 
 code_change(_Old,_Extra,State) ->
@@ -123,7 +121,7 @@ terminate(_Reason,_State) ->
 	ok.
 
 route(_Method, [ Module, Function, Args ],R) ->		%% route defined function
-	io:format("routing to ~p:~p(~p)~n", [ Module, Function, Args ]),
+	error_logger:info_msg("Route to ~p:~p(~p)", [ Module, Function, Args ]),
 	Functions = Module:module_info(functions),
 	case proplists:lookup(Function,Functions) of
 		{ Fun, 1 } ->
@@ -139,7 +137,7 @@ route(_Method, [ Module, Function, Args ],R) ->		%% route defined function
 			#response{ status = 405 }
 	end;
 route(Method, [ Module, Args ], R) ->			%% route request supplied function
-	io:format("routing to ~p:~p(~p)~n", [ Module, Method, Args ]),
+	error_logger:info_msg("Route to ~p:~p(~p)", [ Module, Method, Args ]),
 	Functions = Module:module_info(functions),
 	case proplists:lookup(Method,Functions) of
 		{ Fun, 1 } ->

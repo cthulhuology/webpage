@@ -61,7 +61,7 @@ request(Http = #request{ stage = done, body = Body }, NewData) ->
 	};
 
 request(Http = #request{ stage = _ }, NewData) ->
-	error_logger:error_msg("unknown http protocol stage, got data ~p~n", [ NewData ]),
+	error_logger:error_msg("unknown http protocol stage, got data ~p", [ NewData ]),
 	Http.
 
 

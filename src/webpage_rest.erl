@@ -153,15 +153,15 @@ handle_call(stop,_From,State) ->
 	{ stop, stopped, State };
 
 handle_call(Message,_From,State) ->
-	io:format("[webpage_rest] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("[webpage_rest] unknown message ~p", [ Message ]),
 	{ reply, ok, State }.
 
 handle_cast(Message,State) ->
-	io:format("[webpage_rest] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("[webpage_rest] unknown message ~p", [ Message ]),
 	{ noreply, State }.
 
 handle_info(Message,State) ->
-	io:format("[webpage_rest] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("[webpage_rest] unknown message ~p", [ Message ]),
 	{ noreply, State }.
 
 code_change(_Old,_Extra,State) ->
