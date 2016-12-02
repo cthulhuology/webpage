@@ -22,6 +22,9 @@
 	]},
 	{mod, { webpage_app, []}},
 	{env, [
+		{ nodes, [ webpage@localhost ]},
+		{ tables, [ webpage_auth, webpage_rest, webpage_file ]},
+		{ table_timeout, 20000 },
 		{ salt, <<"thisisareallyterriblesaltdon'tuse">> },
 		{ cacertfile, "cacert.pem" },
 		{ certfile, "cert.pem" },

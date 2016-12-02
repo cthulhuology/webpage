@@ -20,6 +20,14 @@ init([]) ->
 		modules =>  Modules
 		} || { Id, Service, Args, Modules } <- Webpage ], 
 	{ok, { {one_for_one, 5, 10}, [
+		#{ id => webpage_database,
+		start => { webpage_database, start_link, []},
+		restart => permanent,
+		shutdown => brutal_kill,
+		type => worker,
+		modules => [
+			webpage_database
+		]},
 		#{ id => webpage_websocket_sup,
 		start => { webpage_websocket_sup, start_link, []},
 		restart => permanent,

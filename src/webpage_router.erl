@@ -71,6 +71,7 @@ route(Path) ->
 
 init([]) ->
 	Paths = json:decode(webpage_rest:get("/routes")),
+	error_logger:info_msg("Routes are: ~p~n", [ Paths ]),
 	Routes = [ load_route("/" ++ binary:bin_to_list(Path)) || Path <- Paths ],
 	{ ok, #webpage_router{ paths = lists:reverse(Routes) }}.
 
@@ -164,13 +165,18 @@ json_to_route(JSON) when is_binary(JSON) ->
 json_to_route([ Module, Args ]) ->
 	[ list_to_atom(binary_to_list(Module)), json_to_route(Args) ];	
 json_to_route([ Module, Function, Args ]) ->
-	[ list_to_atom(binary_to_list(Module)), list_to_atom(binary_to_list(Function)), json_to_route(Args) ].
+	[ list_to_atom(binary_to_list(Module)), list_to_atom(binary_to_list(Function)), json_to_route(Args) ];
+json_to_route([ X ]) when is_list(X) ->
+	[ json_to_route(X) ].
 
 %% encode a route into json
 route_to_json(Route) ->
 	json:encode(Route).
 
 load_route(Path) ->
-	O = json:decode(webpage_rest:get(Path)), 
+	error_logger:info_msg("Loading ~p", [ Path ]),
+	JSON = webpage_rest:get(Path),
+	error_logger:info_msg("JSON ~p", [ JSON ]),
+	O = json:decode(JSON), 
+	error_logger:info_msg("Term ~p", [ O ]),
 	{ binary_to_list(proplists:get_value(<<"path">>,O)), json_to_route(proplists:get_value(<<"routes">>,O))}.
-

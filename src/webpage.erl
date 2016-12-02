@@ -2,7 +2,7 @@
 -author({ "David J Goehrig", "dave@dloh.org" }).
 -copyright(<<"© 2016 David J Goehrig"/utf8>>).
 -behavior(gen_server).
--export([ start/0, start_link/2, stop/1, server/2 ]).
+-export([ start/0, start_link/2, stop/0, server/2 ]).
 -export([ init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3 ]).
 
 -include("include/http.hrl").
@@ -16,7 +16,6 @@
 server(Module,Port) ->
 	webpage_sup:server(Module,Port).
 
-
 start() ->
 	application:ensure_all_started(webpage).
 
@@ -27,8 +26,8 @@ start_link(Socket,Module) ->
 		request = #request{}
 	},[]).
 
-stop(Webpage) ->
-	gen_server:cast(Webpage,stop).
+stop() ->
+	gen_server:cast(webpage,stop).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Private API
@@ -39,8 +38,6 @@ init(Webpage = #webpage{ socket = Listen }) ->
 		{ ok, Socket } ->
 			case ssl:ssl_accept(Socket,1000) of
 				ok ->
-					{ PeerIP, PeerPort } = inet:peername(Socket),
-					error_logger:info_msg("Socket connection from ~p:~p", [ PeerIP, PeerPort ]),
 					{ ok, Webpage#webpage{
 						socket = Socket,
 						request = #request{ socket = Socket }

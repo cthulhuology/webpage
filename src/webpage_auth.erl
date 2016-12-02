@@ -5,7 +5,7 @@
 
 -include("include/http.hrl").
 
--record(user_auth, { token, user, email, active, paths = [] }).
+-record(webpage_auth, { token, user, email, active, paths = [] }).
 
 -export([ auth/1 ]).
 
@@ -22,8 +22,8 @@ auth(Request = #request{ path = Path, headers = Headers }) ->
 				{ ok, Salt } = application:get_env(webpage,salt),
 				[ <<"Basic">>,Auth ] = binary:split(Authorization,<<" ">>),
 				Token = crypto:hmac(sha256,Salt,Auth),
-				case mnesia:read(user_auth,Token) of
-					[ #user_auth{ user = User, email = Email, active = true, paths = Paths } ] ->
+				case mnesia:read(webpage_auth,Token) of
+					[ #webpage_auth{ user = User, email = Email, active = true, paths = Paths } ] ->
 						case lists:foldl(fun(Pattern,Match) -> 
 							webpage_path:match(Path,Pattern) or Match end, false, Paths) of
 							true ->
@@ -53,7 +53,7 @@ add(User,Email,Password) ->
 	Token = crypto:hmac(sha256,Salt,Auth),
 	F = fun() ->
 		remove(User,Email),
-		ok = mnesia:write(#user_auth{ token = Token, user = User, email = Email, active = true, paths = [] }),
+		ok = mnesia:write(#webpage_auth{ token = Token, user = User, email = Email, active = true, paths = [] }),
 		error_logger:info_msg("Add User ~p <~p>", [ User, Email ])
 	end,
 	mnesia:activity(transaction,F).
@@ -64,7 +64,7 @@ remove(User,Email) when is_list(Email) ->
 	remove(User,list_to_binary(Email));
 remove(User,Email) ->
 	F = fun() ->
-		case mnesia:match_object(#user_auth{ user = User, email = Email, token = '_', active = '_', paths = '_' }) of
+		case mnesia:match_object(#webpage_auth{ user = User, email = Email, token = '_', active = '_', paths = '_' }) of
 			[] -> ok;
 			Records ->
 				error_logger:info_msg("Remove User ~p <~p>", [ User, Email ]),
@@ -77,10 +77,10 @@ grant(User,Pattern) when is_list(User) ->
 	grant(list_to_binary(User),Pattern);
 grant(User,Pattern) ->
 	F = fun() ->
-		case mnesia:match_object(#user_auth{ user = User, email = '_', token = '_', active = true, paths = '_' }) of
+		case mnesia:match_object(#webpage_auth{ user = User, email = '_', token = '_', active = true, paths = '_' }) of
 			[] -> ok;
-			[ Auth = #user_auth{ paths = Paths } ] ->
-				ok = mnesia:write(Auth#user_auth{ paths = [ Pattern | Paths ]}),
+			[ Auth = #webpage_auth{ paths = Paths } ] ->
+				ok = mnesia:write(Auth#webpage_auth{ paths = [ Pattern | Paths ]}),
 				error_logger:info_msg("Granted ~p access to ~p", [ User, Pattern ])	
 		end
 	end,
@@ -90,10 +90,10 @@ revoke(User,Pattern) when is_list(User) ->
 	revoke(list_to_binary(User), Pattern);
 revoke(User,Pattern) ->
 	F = fun() ->
-		case mnesia:match_object(#user_auth{ user = User, email = '_', token = '_', active = true, paths = '_' }) of
+		case mnesia:match_object(#webpage_auth{ user = User, email = '_', token = '_', active = true, paths = '_' }) of
 			[] -> ok;
-			[ Auth = #user_auth{ paths = Paths }] ->
-				ok = mnesia:write(Auth#user_auth{ paths = lists:delete(Pattern,Paths) }),
+			[ Auth = #webpage_auth{ paths = Paths }] ->
+				ok = mnesia:write(Auth#webpage_auth{ paths = lists:delete(Pattern,Paths) }),
 				error_logger:info_msg("Revoked ~p access to ~p", [ User, Pattern ])
 		end
 	end,
@@ -101,9 +101,9 @@ revoke(User,Pattern) ->
 
 users() ->
 	F = fun() ->
-		case mnesia:match_object(#user_auth{ user = '_', email = '_', token = '_', active = true, paths = '_' }) of
+		case mnesia:match_object(#webpage_auth{ user = '_', email = '_', token = '_', active = true, paths = '_' }) of
 			Users when is_list(Users) ->
-				[ User || #user_auth{ user = User } <- Users ];
+				[ User || #webpage_auth{ user = User } <- Users ];
 			_ -> []	
 		end
 	end,
@@ -113,8 +113,8 @@ token(User) when is_list(User) ->
 	token(list_to_binary(User));
 token(User) ->
 	F = fun() ->
-		case mnesia:match_object(#user_auth{ user = User, email = '_', token = '_', active = true, paths = '_' }) of
-			[ #user_auth{ token = Token }] ->
+		case mnesia:match_object(#webpage_auth{ user = User, email = '_', token = '_', active = true, paths = '_' }) of
+			[ #webpage_auth{ token = Token }] ->
 				Token;
 			_ ->
 				undefined
@@ -123,10 +123,6 @@ token(User) ->
 	mnesia:activity(transaction,F).
 
 install(Nodes) ->
-	Database = code:priv_dir(webpage),
-	application:set_env(mnesia,dir, Database),
-	rpc:multicall(Nodes,application,start,[ mnesia ]),
-	{ atomic, ok } = mnesia:create_table(user_auth, [
-		{ attributes, record_info(fields,user_auth) },
-		{ disc_copies, Nodes }]),
-	rpc:multicall(Nodes,application,stop, [ mnesia ]).
+	{ atomic, ok } = mnesia:create_table(webpage_auth, [
+		{ attributes, record_info(fields,webpage_auth) },
+		{ disc_copies, Nodes }]).

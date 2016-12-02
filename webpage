@@ -1,0 +1,31 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -pa $(dirname 0)/ebin
+%%
+
+connect() ->
+	net_kernel:start([ list_to_atom("cmd" ++ integer_to_list(erlang:system_time()) ++ "@localhost"), shortnames ]),
+	net_kernel:connect(webpage@localhost).
+
+main(["file","add", Path, Filename, Mime]) ->
+	connect(),
+	rpc:call(webpage@localhost,webpage_router,add, [ Path, [[ webpage_file, []]]]),
+	rpc:call(webpage@localhost,webpage_file,add, [ Path, Filename, binary:list_to_bin(Mime)]);
+	
+
+main(["route","list"]) ->
+	connect(),
+	Res = rpc:call(webpage@localhost,webpage_router,paths,[]),
+	io:format("~p~n",[Res]);
+
+main(["route","add",Path,Module,Args]) ->
+	connect(),
+	Terms = json:decode(binary:list_to_bin(Args)),
+	rpc:call(webpage@localhost,webpage_router,add, [ Path, [[ Module, Terms ]] ]);
+
+main(["start"]) ->
+	os:cmd("exec erl -sname webpage@localhost -s webpage"),
+	erlang:halt(0);
+
+main(_) ->
+	io:format("usage: webpage [start|stop|route|file]~n").

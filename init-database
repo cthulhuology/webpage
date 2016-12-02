@@ -1,0 +1,7 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -sname webpage@localhost -pa $(dirname 0)/ebin
+
+main(_) ->
+	application:load(webpage),
+	webpage_database:initialize().

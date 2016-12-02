@@ -9,8 +9,7 @@
 
 -include("include/http.hrl").
 
--record(webpage_rest, {}).
--record(rest, { guid, bucket, object  }).
+-record(webpage_rest, { guid, bucket, object  }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Public API
@@ -59,22 +58,22 @@ delete(Path) when is_list(Path) ->
 %
 
 init([]) ->
-	{ ok, #webpage_rest{}}.
+	{ ok, {}}.
 
 handle_call({ get, Path }, _From, State) ->
 	Res = case webpage_path:components(Path)  of
 		[ Bucket ] ->
 			F = fun() ->
-				Objects = mnesia:match_object(#rest{ guid = '_', bucket = Bucket, object = '_' }),
-				Guids = [ list_to_binary(Guid) || #rest{ guid = Guid } <- Objects ],
+				Objects = mnesia:match_object(#webpage_rest{ guid = '_', bucket = Bucket, object = '_' }),
+				Guids = [ list_to_binary(Guid) || #webpage_rest{ guid = Guid } <- Objects ],
 				JSON = json:encode(Guids),
 				#response{ status = 200, headers = [ {<<"Content-Length">>, integer_to_binary(byte_size(JSON))}], body = JSON }
 			end,
 			mnesia:activity(transaction,F);
 		[ Bucket, Guid ] ->
 			F = fun() ->
-				case mnesia:read(rest, Bucket ++ "/" ++ Guid, read) of
-					[ #rest{ object = Body } ] ->
+				case mnesia:read(webpage_rest, Bucket ++ "/" ++ Guid, read) of
+					[ #webpage_rest{ object = Body } ] ->
 						#response{ status = 200, headers = [ {<<"Content-Length">>, integer_to_binary(byte_size(Body))}], body = Body };
 					_ ->
 						#response{ status = 404 } 
@@ -83,9 +82,9 @@ handle_call({ get, Path }, _From, State) ->
 			mnesia:activity(transaction,F);
 		[ Bucket | Filters ] ->
 			F = fun() ->
-				Objects = mnesia:match_object(#rest{ guid = '_', bucket = Bucket, object = '_' }),
+				Objects = mnesia:match_object(#webpage_rest{ guid = '_', bucket = Bucket, object = '_' }),
 				Matching = filter_objects(Objects, list_to_filters(Filters)),
-				JSON = json:encode([ json:decode(O) || #rest{ object = O } <- Matching ]),
+				JSON = json:encode([ json:decode(O) || #webpage_rest{ object = O } <- Matching ]),
 				#response{ status = 200, headers = [{<<"Content-Length">>,integer_to_binary(byte_size(JSON)) }], body = JSON }
 			end,
 			mnesia:activity(transaction,F);
@@ -99,7 +98,7 @@ handle_call({ post, Path, Body }, _From, State) ->
 		[ Bucket ] -> 
 			F = fun() ->
 				Guid = uuid:to_string(uuid:v4()),
-				ok = mnesia:write(#rest{ guid = Bucket ++ "/" ++ Guid, bucket = Bucket, object = Body }),
+				ok = mnesia:write(#webpage_rest{ guid = Bucket ++ "/" ++ Guid, bucket = Bucket, object = Body }),
 				JSON = json:encode(list_to_binary(Guid)),
 				#response{
 					status = 201, 
@@ -119,7 +118,7 @@ handle_call({ put, Path, Body }, _From, State) ->
 	Res = case webpage_path:components(Path)of
 		[ Bucket, Guid ] -> 
 			F = fun() ->
-				ok = mnesia:write(#rest{ guid = Bucket ++ "/" ++ Guid, bucket = Bucket, object = Body }),
+				ok = mnesia:write(#webpage_rest{ guid = Bucket ++ "/" ++ Guid, bucket = Bucket, object = Body }),
 				#response{ status = 204 }
 			end,
 			mnesia:activity(transaction,F);
@@ -132,15 +131,15 @@ handle_call({ delete, Path }, _From, State) ->
 	Res = case webpage_path:components(Path)of
 		[ Bucket, Guid ] -> 
 			F = fun() ->
-				ok = mnesia:delete(rest, Bucket ++ "/" ++ Guid, write),
+				ok = mnesia:delete(webpage_rest, Bucket ++ "/" ++ Guid, write),
 				#response{ status = 204 }
 			end,
 			mnesia:activity(transaction,F);
 		[ Bucket | Filters ] ->
 			F = fun() ->
-				Objects = mnesia:match_object(#rest{ guid = '_', bucket = Bucket, object = '_' }),
+				Objects = mnesia:match_object(#webpage_rest{ guid = '_', bucket = Bucket, object = '_' }),
 				Matching = filter_objects(Objects, list_to_filters(Filters)),
-				[ mnesia:delete(rest, Guid, write) || #rest{ guid = Guid } <- Matching ],
+				[ mnesia:delete(webpage_rest, Guid, write) || #webpage_rest{ guid = Guid } <- Matching ],
 				#response{ status = 204 }
 			end,
 			mnesia:activity(transaction,F);
@@ -153,15 +152,15 @@ handle_call(stop,_From,State) ->
 	{ stop, stopped, State };
 
 handle_call(Message,_From,State) ->
-	error_logger:error_msg("[webpage_rest] unknown message ~p", [ Message ]),
+	error_logger:error_msg("Unknown message ~p", [ Message ]),
 	{ reply, ok, State }.
 
 handle_cast(Message,State) ->
-	error_logger:error_msg("[webpage_rest] unknown message ~p", [ Message ]),
+	error_logger:error_msg("Unknown message ~p", [ Message ]),
 	{ noreply, State }.
 
 handle_info(Message,State) ->
-	error_logger:error_msg("[webpage_rest] unknown message ~p", [ Message ]),
+	error_logger:error_msg("Unknown message ~p", [ Message ]),
 	{ noreply, State }.
 
 code_change(_Old,_Extra,State) ->
@@ -171,14 +170,12 @@ terminate(_Reason,_State) ->
 	ok.
 
 install(Nodes) ->
-	rpc:multicall(Nodes,application,start,[ mnesia ]),
-	{ atomic, ok } = mnesia:create_table(rest, [
-		{ attributes, record_info(fields,rest) },
-		{ disc_copies, Nodes }]),
-	rpc:multicall(Nodes,application,stop, [ mnesia ]).
+	{ atomic, ok } = mnesia:create_table(webpage_rest, [
+		{ attributes, record_info(fields,webpage_rest) },
+		{ disc_copies, Nodes }]).
 
 filter_objects(Objects,Filters) ->
-	lists:filter(fun(#rest{ object = Object }) ->
+	lists:filter(fun(#webpage_rest{ object = Object }) ->
 		O = json:decode(Object),	
 		lists:foldl(fun ({K,V},B) ->
 			B and (V =:= proplists:get_value(K,O))

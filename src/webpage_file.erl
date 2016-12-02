@@ -5,7 +5,7 @@
 
 -include("include/http.hrl").
 
--record(file_paths, { path, filename, mime }).
+-record(webpage_file, { path, filename, mime, time }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Public API
@@ -13,8 +13,8 @@
 
 get(#request{ path = Path }) ->
 	F = fun() ->
-		case mnesia:read(file_paths,Path) of
-			[ #file_paths{ filename = Filename, mime = Mime } ] ->
+		case mnesia:read(webpage_file,Path) of
+			[ #webpage_file{ filename = Filename, mime = Mime } ] ->
 				case file:read_file(Filename) of
 					{ ok, Body }  ->
 						#response{ status = 200, headers = [
@@ -31,23 +31,21 @@ get(#request{ path = Path }) ->
 	mnesia:activity(transaction,F).
 
 install(Nodes) ->
-	application:set_env(mnesia,dir, code:priv_dir(webpage)),
-	rpc:multicall(Nodes,application,start,[ mnesia ]),
-	{ atomic, ok } = mnesia:create_table(file_paths, [
-		{ attributes, record_info(fields,file_paths) },
-		{ disc_copies, Nodes }]),
-	rpc:multicall(Nodes,application,stop, [ mnesia ]).
+	{ atomic, ok } = mnesia:create_table(webpage_file, [
+		{ attributes, record_info(fields,webpage_file) },
+		{ disc_copies, Nodes }]).
 
 add(Path,Filename,Mime) ->
 	F = fun() ->
-		mnesia:delete(file_paths,Path,write),
-		mnesia:write(#file_paths{ path = Path, filename = Filename, mime = Mime })
+		mnesia:delete(webpage_file,Path,write),
+		mnesia:write(#webpage_file{ path = Path, filename = Filename, mime = Mime, time = erlang:system_time() }),
+		error_logger:info_msg("File ~p to ~p", [Path, Filename])
 	end,
-	ok = mnesia:activity(transaction,F),
-	webpage_router:add("/", [ webpage_file, []]).
+	ok = mnesia:activity(transaction,F).
 
 remove(Path) ->
 	F = fun() ->
-		mnesia:delete(file_paths,Path,write)
+		ok = mnesia:delete(webpage_file,Path,write),
+		error_logger:info_msg("File removed ~p", [Path])
 	end,
 	mnesia:activity(transaction,F).

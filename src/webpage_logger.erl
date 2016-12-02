@@ -14,13 +14,13 @@
 
 resp(Req) -> 
 	Path = list_to_binary(Req#request.path),
-	Length = integer_to_binary(6 + byte_size(Path)),
+	Length = integer_to_binary(7 + byte_size(Path)),
 	#response{ 
 		status = 200, 
 		headers = [
 			{ <<"Content-Length">>, Length },
 			{ <<"Mime-Type">>, <<"text/html">> } ],
-		body = <<"hello ", Path/binary>> 
+		body = <<"hello ", Path/binary,"\n">> 
 	}.
 	
 

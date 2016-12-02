@@ -1,0 +1,14 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -sname webpage@localhost -pa $(dirname 0)/ebin
+
+main(_) ->
+	webpage:start(),
+	webpage_router:add("/*", [[ webpage_logger, []]]),
+	webpage_router:add("/webpage", [[ webpage_file, []]]),
+	webpage_file:add("/webpage","webpage",<<"text/plain">>),
+	webpage_router:paths(),
+	io:format("~n"),
+	mnesia:stop(),
+	webpage:stop().
+
