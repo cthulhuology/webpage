@@ -11,7 +11,7 @@ init([]) ->
 
 
 client(Request) ->
-	io:format("starting child  ~p~n", [ Request ]),
+	error_logger:info_msg("Supervisor starting child  ~p", [ Request ]),
 	supervisor:start_child(?MODULE, #{
 		id => uuid:id(),
 		start => { webpage_websocket, start_link, [ Request ]},

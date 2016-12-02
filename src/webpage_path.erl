@@ -2,7 +2,7 @@
 -author({ "David J Goehrig", "dave@dloh.org" }).
 -copyright(<<"© 2016 David J Goehrig"/utf8>>).
 
--export([ match/2, scan/2, components/1 ]).
+-export([ match/2, scan/2, components/1, order/1 ]).
 
 components(Path) ->
 	string:tokens(Path,"/").
@@ -32,3 +32,10 @@ scan(Path, [ { K, V} | T ]) ->
 		true -> V;
 		false -> scan(Path,T)
 	end.
+
+order([], Acc) ->
+	lists:reverse(Acc);
+order([ { K,_V } | T ],Acc) ->
+	order(T, [ K | Acc ]).
+order(List) ->
+	order(List,[]).

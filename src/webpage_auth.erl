@@ -14,10 +14,8 @@
 %
 
 auth(Request = #request{ path = Path, headers = Headers }) ->
-	io:format("auth headers are ~p~n",[ Headers ]),
 	case proplists:get_value(<<"Authorization">>, Headers ) of
 		undefined ->
-			io:format("challenging~n"),
 			#response{ status = 401, headers = [{  <<"WWW-Authenticate">>,<<"Basic realm=\"webpage\"">> }, {<<"Content-Length">>, <<"0">> }]};
 		Authorization ->
 			F = fun() ->
@@ -29,11 +27,14 @@ auth(Request = #request{ path = Path, headers = Headers }) ->
 						case lists:foldl(fun(Pattern,Match) -> 
 							webpage_path:match(Path,Pattern) or Match end, false, Paths) of
 							true ->
+								error_logger:info_msg("Allow ~p <~p> for ~p", [ User, Email, Path ]),
 								Request#request{ headers = [ { <<"User">>, User},{<<"Email">>,Email } | Headers ] };
 							false ->
+								error_logger:info_msg("Deny ~p <~p> for ~p", [ User, Email, Path ]),
 								#response{ status = 401, headers = [{  <<"WWW-Authenticate">>,<<"Basic realm=\"webpage\"">> }, {<<"Content-Length">>, <<"0">> }]}
 						end;
 					_ ->
+						error_logger:info_msg("Deny token ~p for ~p", [ Auth, Path ]),
 						#response{ status = 401, headers = [{  <<"WWW-Authenticate">>,<<"Basic realm=\"webpage\"">> }, {<<"Content-Length">>, <<"0">> }]}
 				end
 			end,
@@ -52,7 +53,8 @@ add(User,Email,Password) ->
 	Token = crypto:hmac(sha256,Salt,Auth),
 	F = fun() ->
 		remove(User,Email),
-		mnesia:write(#user_auth{ token = Token, user = User, email = Email, active = true, paths = [] })
+		ok = mnesia:write(#user_auth{ token = Token, user = User, email = Email, active = true, paths = [] }),
+		error_logger:info_msg("Add User ~p <~p>", [ User, Email ])
 	end,
 	mnesia:activity(transaction,F).
 
@@ -65,6 +67,7 @@ remove(User,Email) ->
 		case mnesia:match_object(#user_auth{ user = User, email = Email, token = '_', active = '_', paths = '_' }) of
 			[] -> ok;
 			Records ->
+				error_logger:info_msg("Remove User ~p <~p>", [ User, Email ]),
 				[ mnesia:delete_object(Record) || Record <- Records ]
 		end
 	end,
@@ -77,7 +80,8 @@ grant(User,Pattern) ->
 		case mnesia:match_object(#user_auth{ user = User, email = '_', token = '_', active = true, paths = '_' }) of
 			[] -> ok;
 			[ Auth = #user_auth{ paths = Paths } ] ->
-				mnesia:write(Auth#user_auth{ paths = [ Pattern | Paths ]})
+				ok = mnesia:write(Auth#user_auth{ paths = [ Pattern | Paths ]}),
+				error_logger:info_msg("Granted ~p access to ~p", [ User, Pattern ])	
 		end
 	end,
 	mnesia:activity(transaction,F).
@@ -89,7 +93,8 @@ revoke(User,Pattern) ->
 		case mnesia:match_object(#user_auth{ user = User, email = '_', token = '_', active = true, paths = '_' }) of
 			[] -> ok;
 			[ Auth = #user_auth{ paths = Paths }] ->
-				mnesia:write(Auth#user_auth{ paths = lists:delete(Pattern,Paths) })
+				ok = mnesia:write(Auth#user_auth{ paths = lists:delete(Pattern,Paths) }),
+				error_logger:info_msg("Revoked ~p access to ~p", [ User, Pattern ])
 		end
 	end,
 	mnesia:activity(transaction,F).

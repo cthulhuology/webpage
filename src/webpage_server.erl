@@ -49,7 +49,7 @@ init(Server = #webpage_server{ port = Port }) ->
 			accept(Port),
 			{ ok, Server#webpage_server{ socket = Socket }};
 		{ error, Reason } ->
-			io:format("Failed to listen on port ~p, because ~p~n", [ Port, Reason ]),
+			error_logger:error_msg("Socket listen failed on ~p because: ~p", [ Port, Reason ]),
 			{ stop, Reason }
 	end.
 
@@ -57,7 +57,7 @@ handle_call(stop,_From,Server) ->
 	{ stop, stopped, Server };
 
 handle_call(Message,_From,Server) ->
-	io:format("[webpage_server] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("Unknown message ~p", [ Message ]),
 	{ reply, ok, Server }.
 
 handle_cast(accept,Server = #webpage_server{ module = Module, socket = Socket, port = Port }) ->
@@ -66,11 +66,11 @@ handle_cast(accept,Server = #webpage_server{ module = Module, socket = Socket, p
 	{ noreply, Server };
 
 handle_cast(Message,Server) ->
-	io:format("[webpage_server] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("Unknown message ~p", [ Message ]),
 	{ noreply, Server }.
 
 handle_info(Message,Server) ->
-	io:format("[webpage_server] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("Unknown message ~p", [ Message ]),
 	{ noreply, Server }.
 
 code_change(_Old,_Extra,Server) ->

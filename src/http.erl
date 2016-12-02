@@ -61,7 +61,7 @@ request(Http = #request{ stage = done, body = Body }, NewData) ->
 	};
 
 request(Http = #request{ stage = _ }, NewData) ->
-	io:format("unknown http protocol stage, got data ~p~n", [ NewData ]),
+	error_logger:error_msg("unknown http protocol stage, got data ~p", [ NewData ]),
 	Http.
 
 
@@ -103,7 +103,7 @@ parse_headers( Data, [{X,L}|Matches], Offset, Acc ) ->
 		
 
 dump(#request{ method = Method, path = Path, protocol = Protocol, headers = Headers, body = Body }) ->
-	io:format("method: ~p~npath: ~p~nprotocol: ~p~nheaders: ~p~nbody:~n~p~n", [ Method,Path,Protocol,Headers,Body ]).
+	error_logger:info_msg("method: ~p~npath: ~p~nprotocol: ~p~nheaders: ~p~nbody:~n~p~n", [ Method,Path,Protocol,Headers,Body ]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Private API

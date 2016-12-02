@@ -84,7 +84,8 @@ handle_call({ get, Path }, _From, State) ->
 		[ Bucket | Filters ] ->
 			F = fun() ->
 				Objects = mnesia:match_object(#rest{ guid = '_', bucket = Bucket, object = '_' }),
-				JSON = json:encode(filter_objects(Objects, list_to_filters(Filters))),
+				Matching = filter_objects(Objects, list_to_filters(Filters)),
+				JSON = json:encode([ json:decode(O) || #rest{ object = O } <- Matching ]),
 				#response{ status = 200, headers = [{<<"Content-Length">>,integer_to_binary(byte_size(JSON)) }], body = JSON }
 			end,
 			mnesia:activity(transaction,F);
@@ -135,6 +136,14 @@ handle_call({ delete, Path }, _From, State) ->
 				#response{ status = 204 }
 			end,
 			mnesia:activity(transaction,F);
+		[ Bucket | Filters ] ->
+			F = fun() ->
+				Objects = mnesia:match_object(#rest{ guid = '_', bucket = Bucket, object = '_' }),
+				Matching = filter_objects(Objects, list_to_filters(Filters)),
+				[ mnesia:delete(rest, Guid, write) || #rest{ guid = Guid } <- Matching ],
+				#response{ status = 204 }
+			end,
+			mnesia:activity(transaction,F);
 		_ -> 
 			#response{ status = 403 }
 	end,
@@ -144,15 +153,15 @@ handle_call(stop,_From,State) ->
 	{ stop, stopped, State };
 
 handle_call(Message,_From,State) ->
-	io:format("[webpage_rest] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("[webpage_rest] unknown message ~p", [ Message ]),
 	{ reply, ok, State }.
 
 handle_cast(Message,State) ->
-	io:format("[webpage_rest] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("[webpage_rest] unknown message ~p", [ Message ]),
 	{ noreply, State }.
 
 handle_info(Message,State) ->
-	io:format("[webpage_rest] unknown message ~p~n", [ Message ]),
+	error_logger:error_msg("[webpage_rest] unknown message ~p", [ Message ]),
 	{ noreply, State }.
 
 code_change(_Old,_Extra,State) ->
@@ -169,24 +178,15 @@ install(Nodes) ->
 	rpc:multicall(Nodes,application,stop, [ mnesia ]).
 
 filter_objects(Objects,Filters) ->
-	lists:filter(fun(O) ->
+	lists:filter(fun(#rest{ object = Object }) ->
+		O = json:decode(Object),	
 		lists:foldl(fun ({K,V},B) ->
 			B and (V =:= proplists:get_value(K,O))
 		end, true, Filters)
-	end,[ json:decode(Object) || #rest{ object = Object } <- Objects]).
-
-
-url_decode([], Acc) ->
-	lists:reverse(Acc);
-url_decode([ $%, X, Y | T ], Acc) ->
-	url_decode( T, [ list_to_integer([X,Y],16) | Acc ]);
-url_decode([ $+ | T ], Acc) ->
-	url_decode(T, [ 32 | Acc ]); 
-url_decode([ X | T ], Acc ) ->
-	url_decode(T, [ X | Acc ]).
+	end, Objects).
 
 to_json(Value) ->
-	V2 = url_decode(Value,[]),
+	V2 = url:decode(Value),
 	json:decode(list_to_binary(V2)).
 
 list_to_filters([],Acc) ->
