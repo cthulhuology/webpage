@@ -27,7 +27,7 @@ start_link(Socket,Module) ->
 	},[]).
 
 stop() ->
-	gen_server:cast(webpage,stop).
+	gen_server:cast(?MODULE,stop).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Private API
@@ -55,6 +55,9 @@ handle_call(Message,_From,Webpage) ->
 	error_logger:error_msg("Unknown message: ~p", [ Message ]),
 	{ reply, ok, Webpage }.
 
+handle_cast(stop,State) ->
+	error_logger:info_msg("Stopping"),
+	{ stop, stopped, State };
 
 handle_cast(Response = #response{},Webpage = #webpage{ socket = Socket }) ->
 	Bin = http:response(Response),

@@ -7,11 +7,28 @@ connect() ->
 	net_kernel:start([ list_to_atom("cmd" ++ integer_to_list(erlang:system_time()) ++ "@localhost"), shortnames ]),
 	net_kernel:connect(webpage@localhost).
 
+main(["init"]) ->
+	net_kernel:start([webpage@localhost,shortnames]),
+	application:load(webpage),
+	webpage_database:initialize(),
+	erlang:halt(0);
+
+main(["setup"]) ->
+	net_kernel:start([webpage@localhost,shortnames]),
+	webpage:start(),
+	webpage_router:add("/*", [[ webpage_logger, []]]),
+	webpage_router:add("/webpage", [[ webpage_file, []]]),
+	webpage_file:add("/webpage","webpage",<<"text/plain">>),
+	webpage_router:paths(),
+	io:format("~n"),
+	mnesia:stop(),
+	webpage:stop(),
+	erlang:halt(0);
+
 main(["file","add", Path, Filename, Mime]) ->
 	connect(),
 	rpc:call(webpage@localhost,webpage_router,add, [ Path, [[ webpage_file, []]]]),
 	rpc:call(webpage@localhost,webpage_file,add, [ Path, Filename, binary:list_to_bin(Mime)]);
-	
 
 main(["route","list"]) ->
 	connect(),
@@ -23,8 +40,29 @@ main(["route","add",Path,Module,Args]) ->
 	Terms = json:decode(binary:list_to_bin(Args)),
 	rpc:call(webpage@localhost,webpage_router,add, [ Path, [[ Module, Terms ]] ]);
 
+main(["observer"]) ->
+	connect(),
+	rpc:call(webpage@localhost,observer,start,[]),
+	erlang:halt(0);
+
+main(["console"]) ->
+	connect(),
+	process_flag(trap_exit,true),
+	Shell = user_drv:start(['tty_sl -c -e',{webpage@localhost,shell,start,[]}]),
+	true = erlang:link(Shell),
+	receive
+		{ 'EXIT', Shell, _ } -> ok
+	end,
+	erlang:halt(0);
+
 main(["start"]) ->
-	os:cmd("exec erl -sname webpage@localhost -s webpage"),
+	os:cmd("exec nohup erl -noshell -noinput -sname webpage@localhost -s webpage"),
+	erlang:halt(0);
+
+main(["stop"]) ->
+	connect(),
+	Res = rpc:call(webpage@localhost, webpage, stop, []),
+	io:format("~p~n", [ Res ]),
 	erlang:halt(0);
 
 main(_) ->
