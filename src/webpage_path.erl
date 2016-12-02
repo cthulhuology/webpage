@@ -35,7 +35,7 @@ scan(Path, [ { K, V} | T ]) ->
 
 order([], Acc) ->
 	lists:reverse(Acc);
-order([ { K,V } | T ],Acc) ->
+order([ { K,_V } | T ],Acc) ->
 	order(T, [ K | Acc ]).
 order(List) ->
 	order(List,[]).

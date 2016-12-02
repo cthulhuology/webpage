@@ -37,14 +37,14 @@ stop(Webpage) ->
 init(Webpage = #webpage{ socket = Listen }) ->
 	case ssl:transport_accept(Listen) of
 		{ ok, Socket } ->
-			case ssl:ssl_accept(Socket,5000) of
+			case ssl:ssl_accept(Socket,1000) of
 				ok ->
 					{ ok, Webpage#webpage{
 						socket = Socket,
 						request = #request{ socket = Socket }
 					}};
 				{ error, Reason } ->
-					io:format("failed to make ssl connetion ~p~n", [ Reason ]),
+					io:format("failed to make ssl connection ~p~n", [ Reason ]),
 					{ stop, Reason }
 			end;
 		{ error, Reason } ->

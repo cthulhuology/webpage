@@ -87,7 +87,8 @@ handle_call({dispatch,Method,Path,Request}, _From, State = #webpage_router{ path
 	case webpage_path:scan(Path,Paths) of
 		Routes when is_list(Routes) ->
 			io:format("Routing ~p ~p to ~p~n", [ Method, Path, Routes ]),
-			Res = lists:foldl(fun(Route,R) -> route(Method,Route,R) end, Request, Routes ),
+			Res = lists:foldl(fun(Route,R) -> route(Method,Route,R) end, Request, Routes),
+			io:format("Result ~p~n", [ Res ]),
 			{ reply, Res, State };
 		_ ->
 			io:format("Got invalid route ~p~n", [ Path ]),
@@ -152,7 +153,10 @@ route(Method, [ Module, Args ], R) ->			%% route request supplied function
 			end;	
 		_ ->
 			#response{ status = 405 }
-	end.
+	end;
+
+route(_Method, _, _R) ->
+	#response{ status = 405 }.
 
 %% decode a json array into a route
 json_to_route([]) ->
