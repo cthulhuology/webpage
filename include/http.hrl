@@ -1,3 +1,5 @@
+-compile({no_auto_import,[get/1]}).
+
 -record(request, {
 	socket, module, function, args,
 	stage = request_line, 

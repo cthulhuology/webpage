@@ -3,18 +3,23 @@
 %%! -pa $(dirname 0)/ebin
 %%
 
-connect() ->
-	net_kernel:start([ list_to_atom("cmd" ++ integer_to_list(erlang:system_time()) ++ "@localhost"), shortnames ]),
-	net_kernel:connect(webpage@localhost).
+-include("include/http.hrl").
 
-main(["init"]) ->
-	net_kernel:start([webpage@localhost,shortnames]),
+connect(Server) ->
+	net_kernel:start([ list_to_atom("cmd" ++ integer_to_list(erlang:system_time()) ++ "@localhost"), shortnames ]),
+	case net_kernel:connect(Server) of
+		false -> io:format("Failed to connect to ~p~n", [ Server ]);
+		true -> ok
+	end.
+
+process(Server,["init"]) ->
+	net_kernel:start([Server,shortnames]),
 	application:load(webpage),
 	webpage_database:initialize(),
 	erlang:halt(0);
 
-main(["setup"]) ->
-	net_kernel:start([webpage@localhost,shortnames]),
+process(Server,["setup"]) ->
+	net_kernel:start([Server,shortnames]),
 	webpage:start(),
 	webpage_router:add("/*", [[ webpage_logger, []]]),
 	webpage_router:add("/webpage", [[ webpage_file, []]]),
@@ -25,45 +30,81 @@ main(["setup"]) ->
 	webpage:stop(),
 	erlang:halt(0);
 
-main(["file","add", Path, Filename, Mime]) ->
-	connect(),
-	rpc:call(webpage@localhost,webpage_router,add, [ Path, [[ webpage_file, []]]]),
-	rpc:call(webpage@localhost,webpage_file,add, [ Path, Filename, binary:list_to_bin(Mime)]);
+process(Server,["status"]) ->
+	connect(Server),
+	io:format("ok~n");
 
-main(["route","list"]) ->
-	connect(),
-	Res = rpc:call(webpage@localhost,webpage_router,paths,[]),
+process(Server,["file","add", Path, Filename, Mime]) ->
+	connect(Server),
+	rpc:call(Server,webpage_router,add, [ Path, [[ webpage_file, []]]]),
+	rpc:call(Server,webpage_file,add, [ Path, Filename, binary:list_to_bin(Mime)]);
+
+process(Server,["file","remove", Path]) ->
+	connect(Server),
+	rpc:call(Server,webpage_router,remove, [ Path ]),
+	rpc:call(Server,webpage_file, remove, [ Path ]);
+
+process(Server,["file","get", Path ]) ->
+	connect(Server),
+	#response{ body = Body } = rpc:call(Server,webpage_file, get, [ Path ]),
+	io:format("~s~n", [ Body ]);
+
+process(Server,["route","list"]) ->
+	connect(Server),
+	Res = rpc:call(Server,webpage_router,paths,[]),
 	io:format("~p~n",[Res]);
 
-main(["route","add",Path,Module,Args]) ->
-	connect(),
+process(Server,["route","add",Path,Module,Args]) ->
+	connect(Server),
 	Terms = json:decode(binary:list_to_bin(Args)),
-	rpc:call(webpage@localhost,webpage_router,add, [ Path, [[ Module, Terms ]] ]);
+	rpc:call(Server,webpage_router,add, [ Path, [[ Module, Terms ]] ]);
 
-main(["observer"]) ->
-	connect(),
-	rpc:call(webpage@localhost,observer,start,[]),
+process(Server,["observer"]) ->
+	connect(Server),
+	rpc:call(Server,observer,start,[]),
 	erlang:halt(0);
 
-main(["console"]) ->
-	connect(),
+process(Server,["console"]) ->
+	connect(Server),
 	process_flag(trap_exit,true),
-	Shell = user_drv:start(['tty_sl -c -e',{webpage@localhost,shell,start,[]}]),
+	Shell = user_drv:start(['tty_sl -c -e',{Server,shell,start,[]}]),
 	true = erlang:link(Shell),
 	receive
 		{ 'EXIT', Shell, _ } -> ok
 	end,
 	erlang:halt(0);
 
-main(["start"]) ->
-	os:cmd("exec nohup erl -noshell -noinput -sname webpage@localhost -s webpage"),
+process(Server,["start"]) ->
+	os:cmd("erl -noshell -noinput -sname " ++ atom_to_list(Server) ++ " -s webpage"),
 	erlang:halt(0);
 
-main(["stop"]) ->
-	connect(),
-	Res = rpc:call(webpage@localhost, webpage, stop, []),
-	io:format("~p~n", [ Res ]),
+process(Server,["stop"]) ->
+	connect(Server),
+	Res = rpc:call(Server, webpage, stop, []),
+	io:format("~s~n", [ Res ]),
 	erlang:halt(0);
 
-main(_) ->
+process(_Server,_) ->
 	io:format("usage: webpage [start|stop|route|file]~n").
+
+load_config(Home) ->
+	case file:consult(Home ++ "/.webpage") of 
+		{ok, Config } -> 
+			Config;
+		_ ->
+			io:format("Please create a ~s/.webpage configuration file~n", [ Home ]), halt(0)
+	end.
+
+find_host(Config) ->
+	case proplists:get_value(host,Config) of
+		undefined ->
+			io:format("Please set host in configuration file~n"), halt(0);
+		Host ->
+			Host
+	end.
+
+main(Args) ->
+	Home = os:getenv("HOME"),
+	Config = load_config(Home),
+	Host = find_host(Config),
+	process(Host,Args).

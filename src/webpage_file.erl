@@ -10,7 +10,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Public API
 %
-
+get(Path) when is_list(Path) ->
+	get(#request{ path = Path });
 get(#request{ path = Path }) ->
 	F = fun() ->
 		case mnesia:read(webpage_file,Path) of
