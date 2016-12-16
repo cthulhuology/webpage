@@ -63,6 +63,7 @@ init([]) ->
 handle_call({ get, Path }, _From, State) ->
 	Res = case webpage_path:components(Path)  of
 		[ Bucket ] ->
+			io:format("searching bucket ~p~n", [ Bucket ]),
 			F = fun() ->
 				Objects = mnesia:match_object(#webpage_rest{ guid = '_', bucket = Bucket, object = '_' }),
 				Guids = [ list_to_binary(Guid) || #webpage_rest{ guid = Guid } <- Objects ],
@@ -71,6 +72,7 @@ handle_call({ get, Path }, _From, State) ->
 			end,
 			mnesia:activity(transaction,F);
 		[ Bucket, Guid ] ->
+			io:format("searching file ~p/~p~n", [ Bucket, Guid ]),
 			F = fun() ->
 				case mnesia:read(webpage_rest, Bucket ++ "/" ++ Guid, read) of
 					[ #webpage_rest{ object = Body } ] ->
@@ -81,6 +83,7 @@ handle_call({ get, Path }, _From, State) ->
 			end,
 			mnesia:activity(transaction,F);
 		[ Bucket | Filters ] ->
+			io:format("searching bucket ~p with ~p", [ Bucket, Filters ]),
 			F = fun() ->
 				Objects = mnesia:match_object(#webpage_rest{ guid = '_', bucket = Bucket, object = '_' }),
 				Matching = filter_objects(Objects, list_to_filters(Filters)),
@@ -96,8 +99,10 @@ handle_call({ get, Path }, _From, State) ->
 handle_call({ post, Path, Body }, _From, State) ->
 	Res = case webpage_path:components(Path) of
 		[ Bucket ] -> 
+			io:format("Adding document to ~p with content ~p~n", [ Bucket, Body ] ),
 			F = fun() ->
 				Guid = uuid:to_string(uuid:v4()),
+				io:format("Generating ~p~n", [ Guid ]),
 				ok = mnesia:write(#webpage_rest{ guid = Bucket ++ "/" ++ Guid, bucket = Bucket, object = Body }),
 				JSON = json:encode(list_to_binary(Guid)),
 				#response{
@@ -108,7 +113,7 @@ handle_call({ post, Path, Body }, _From, State) ->
 					], 
 					body = JSON }
 			end,
-			mnesia:activity(transaction,F);
+			mnesia:activity(sync_transaction,F);
 		_ ->
 			#response{ status = 403 }
 	end,
@@ -121,7 +126,7 @@ handle_call({ put, Path, Body }, _From, State) ->
 				ok = mnesia:write(#webpage_rest{ guid = Bucket ++ "/" ++ Guid, bucket = Bucket, object = Body }),
 				#response{ status = 204 }
 			end,
-			mnesia:activity(transaction,F);
+			mnesia:activity(sync_transaction,F);
 		_ -> 
 			#response{ status = 403 }
 	end,
@@ -134,7 +139,7 @@ handle_call({ delete, Path }, _From, State) ->
 				ok = mnesia:delete(webpage_rest, Bucket ++ "/" ++ Guid, write),
 				#response{ status = 204 }
 			end,
-			mnesia:activity(transaction,F);
+			mnesia:activity(sync_transaction,F);
 		[ Bucket | Filters ] ->
 			F = fun() ->
 				Objects = mnesia:match_object(#webpage_rest{ guid = '_', bucket = Bucket, object = '_' }),
@@ -142,7 +147,7 @@ handle_call({ delete, Path }, _From, State) ->
 				[ mnesia:delete(webpage_rest, Guid, write) || #webpage_rest{ guid = Guid } <- Matching ],
 				#response{ status = 204 }
 			end,
-			mnesia:activity(transaction,F);
+			mnesia:activity(sync_transaction,F);
 		_ -> 
 			#response{ status = 403 }
 	end,

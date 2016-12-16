@@ -26,6 +26,7 @@ stop(WebSocket) ->
 
 %% returns true if the request is a websocket request
 get(Request = #request{ headers = Headers }) ->
+	io:format("websocket got ~p~n", [ Request ]),
 	case proplists:get_value(<<"Sec-WebSocket-Version">>,Headers) of
 		<<"13">> -> 
 			webpage_websocket_sup:client(Request),
@@ -41,8 +42,8 @@ get(Response = #response{}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% gen_server methods
 init(Request = #request{ socket = Socket, args = [ Module, Function, Args ], path = Path, body = Data }) ->
-	{ PeerIP, PeerPort } = inet:peername(Socket),
-	error_logger:info_msg("Websocket started on ~p, from ~p:~p", [ Path, PeerIP, PeerPort ]),
+%%	{ PeerIP, PeerPort } = inet:peername(Socket),
+%%	error_logger:info_msg("Websocket started on ~p, from ~p:~p", [ Path, PeerIP, PeerPort ]),
 	ok = ssl:controlling_process(Socket,self()),
 	spawn(Module,Function,[self(),Path,connected]),
 	{ ok, #websocket{ 

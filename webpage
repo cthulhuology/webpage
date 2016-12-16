@@ -19,15 +19,20 @@ process(Server,["init"]) ->
 	erlang:halt(0);
 
 process(Server,["setup"]) ->
+	process(Server, ["setup", "setup.conf" ]);
+
+process(Server,["setup", File ]) ->
 	net_kernel:start([Server,shortnames]),
 	webpage:start(),
-	webpage_router:add("/*", [[ webpage_logger, []]]),
-	webpage_router:add("/webpage", [[ webpage_file, []]]),
-	webpage_file:add("/webpage","webpage",<<"text/plain">>),
-	webpage_router:paths(),
-	io:format("~n"),
+	{ ok, Config } = file:consult(File),
+	Routes = proplists:get_value(routes, Config),
+	[ webpage_router:add( Path, Module ) ||  { Path, Module } <- Routes ],
+	Files = proplists:get_value(files, Config),
+	[ webpage_file:add( Path, Local, Mime )  || { Path, Local, Mime } <- Files ],
+	mnesia:sync_log(),
+	timer:sleep(5000),
 	mnesia:stop(),
-	webpage:stop(),
+	io:format("done~n"),
 	erlang:halt(0);
 
 process(Server,["status"]) ->
@@ -49,6 +54,11 @@ process(Server,["file","get", Path ]) ->
 	#response{ body = Body } = rpc:call(Server,webpage_file, get, [ Path ]),
 	io:format("~s~n", [ Body ]);
 
+process(Server,["file","list"]) ->
+	connect(Server),
+	Files = rpc:call(Server,webpage_file, list, []),
+	io:format("~p~n", [ Files ]);
+
 process(Server,["route","list"]) ->
 	connect(Server),
 	Res = rpc:call(Server,webpage_router,paths,[]),
@@ -56,13 +66,20 @@ process(Server,["route","list"]) ->
 
 process(Server,["route","add",Path,Module,Args]) ->
 	connect(Server),
-	Terms = json:decode(binary:list_to_bin(Args)),
+	Bin = binary:list_to_bin(Args),
+	io:format("Got json ~p~n", [ Bin ]),
+	Terms = json:decode(Bin),
+	io:format("Tems are ~p~n", [ Terms ]),
 	rpc:call(Server,webpage_router,add, [ Path, [[ Module, Terms ]] ]);
+
+process(Server,[ "route","get", Path ]) ->
+	connect(Server),
+	List = rpc:call(Server,webpage_router,route, [Path]),
+	io:format("~p~n", [ List ]);
 
 process(Server,["observer"]) ->
 	connect(Server),
-	rpc:call(Server,observer,start,[]),
-	erlang:halt(0);
+	rpc:call(Server,observer,start,[]);
 
 process(Server,["console"]) ->
 	connect(Server),
@@ -75,14 +92,12 @@ process(Server,["console"]) ->
 	erlang:halt(0);
 
 process(Server,["start"]) ->
-	os:cmd("erl -noshell -noinput -sname " ++ atom_to_list(Server) ++ " -s webpage"),
-	erlang:halt(0);
+	os:cmd("erl -noshell -noinput -sname " ++ atom_to_list(Server) ++ " -s webpage");
 
 process(Server,["stop"]) ->
 	connect(Server),
-	Res = rpc:call(Server, webpage, stop, []),
-	io:format("~s~n", [ Res ]),
-	erlang:halt(0);
+	rpc:call(Server, mnesia, stop, []),
+	rpc:call(Server, erlang, halt, []);
 
 process(_Server,_) ->
 	io:format("usage: webpage [start|stop|route|file]~n").
@@ -107,4 +122,5 @@ main(Args) ->
 	Home = os:getenv("HOME"),
 	Config = load_config(Home),
 	Host = find_host(Config),
+	io:format("Connecting to ~p~n", [ Host ]),
 	process(Host,Args).

@@ -72,7 +72,7 @@ route(Path) ->
 init([]) ->
 	Paths = json:decode(webpage_rest:get("/routes")),
 	error_logger:info_msg("Routes are: ~p~n", [ Paths ]),
-	Routes = [ load_route("/" ++ binary:bin_to_list(Path)) || Path <- Paths ],
+	Routes = sort_routes([ load_route("/" ++ binary:bin_to_list(Path)) || Path <- Paths ]),
 	{ ok, #webpage_router{ paths = lists:reverse(Routes) }}.
 
 handle_call(paths,_From,State = #webpage_router{ paths = Paths }) ->
@@ -100,7 +100,11 @@ handle_call(Message,_From,State) ->
 
 
 handle_cast({ add, Path, Routes }, State = #webpage_router{ paths = Paths }) ->
-	webpage_rest:post({ "/routes", json:encode( [ { <<"path">>, list_to_binary(Path) }, { <<"routes">>, Routes }])}),
+	webpage_rest:post({ "/routes", json:encode( [
+		{ <<"path">>, list_to_binary(Path) }, 
+		{ <<"routes">>, Routes },
+		{ <<"time">>, os:system_time() }
+	])}),
 	{ noreply, State#webpage_router{ paths = [ { Path, Routes } | proplists:delete(Path,Paths) ]}};	
 
 handle_cast({ remove, Path }, State = #webpage_router{ paths = Paths }) ->
@@ -179,4 +183,10 @@ load_route(Path) ->
 	error_logger:info_msg("JSON ~p", [ JSON ]),
 	O = json:decode(JSON), 
 	error_logger:info_msg("Term ~p", [ O ]),
-	{ binary_to_list(proplists:get_value(<<"path">>,O)), json_to_route(proplists:get_value(<<"routes">>,O))}.
+	{ binary_to_list(proplists:get_value(<<"path">>,O)), json_to_route(proplists:get_value(<<"routes">>,O)), proplists:get_value(<<"time">>,O) }.
+
+sort_routes(Routes) ->
+	Sorted = lists:sort(fun({_,_,A },{ _,_, B }) -> A < B end, Routes),
+	io:format("Sorted lists ~p~n", [ Sorted ]),
+	[ { X, Y } || { X, Y, _Z } <- Sorted ].
+

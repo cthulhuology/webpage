@@ -1,7 +1,7 @@
 -module(webpage_file).
 -author({ "David J Goehrig", "dave@dloh.org" }).
 -copyright(<<"© 2016 David J Goehrig"/utf8>>).
--export([ get/1, add/3, remove/1, install/1]).
+-export([ get/1, add/3, remove/1, list/0, install/1]).
 
 -include("include/http.hrl").
 
@@ -48,5 +48,11 @@ remove(Path) ->
 	F = fun() ->
 		ok = mnesia:delete(webpage_file,Path,write),
 		error_logger:info_msg("File removed ~p", [Path])
+	end,
+	mnesia:activity(transaction,F).
+
+list() ->
+	F = fun() ->
+		mnesia:all_keys(webpage_file)
 	end,
 	mnesia:activity(transaction,F).
