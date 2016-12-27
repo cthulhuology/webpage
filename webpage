@@ -1,39 +1,51 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -pa $(dirname 0)/ebin
+%%! -pa $(dirname 0)/ebin -noshell -noinput
 %%
+%% Copyright 2016 David J. Goehrig <dave@dloh.org>
 
 -include("include/http.hrl").
 
+%% starts a local node to issue commands from
+%% we name these sequentially with system time
+%% to avoid colliding with other command processes
 connect(Server) ->
 	net_kernel:start([ list_to_atom("cmd" ++ integer_to_list(erlang:system_time()) ++ "@localhost"), shortnames ]),
 	case net_kernel:connect(Server) of
-		false -> io:format("Failed to connect to ~p~n", [ Server ]);
+		false -> 	
+			io:format("Failed to connect to ~p~n", [ Server ]),
+			erlang:halt(0);
 		true -> ok
 	end.
 
+%% process takes the command line arugments and performs
+%% the associated action
 process(Server,["init"]) ->
-	net_kernel:start([Server,shortnames]),
-	application:load(webpage),
-	webpage_database:initialize(),
-	erlang:halt(0);
+	io:format("starting ~p~n", [ Server ]),
+	process_flag(trap_exit,true),
+	case net_kernel:start([Server,shortnames]) of
+		{ ok, Pid } ->
+			io:format("Started ~p at ~p~n", [ Server, Pid ]),
+			connect(Server),
+			rpc:call(Server, application,load,[webpage]),
+			rpc:call(Server, webpage_database, initialize,[]);
+		{ error, Reason } ->
+			io:format("Failed to start ~p: ~p~n", [ Server, Reason ]),
+			erlang:halt(1)
+	end;
 
-process(Server,["setup"]) ->
-	process(Server, ["setup", "setup.conf" ]);
 
-process(Server,["setup", File ]) ->
-	net_kernel:start([Server,shortnames]),
-	webpage:start(),
+process(Server, [ "setup", File ]) ->
+	connect(Server),
 	{ ok, Config } = file:consult(File),
+	io:format("loading config ~p~n", [ Config ]),
 	Routes = proplists:get_value(routes, Config),
-	[ webpage_router:add( Path, Module ) ||  { Path, Module } <- Routes ],
+	[ rpc:call(Server, webpage_router,add,[ Path, Module ]) ||  { Path, Module } <- Routes ],
 	Files = proplists:get_value(files, Config),
-	[ webpage_file:add( Path, Local, Mime )  || { Path, Local, Mime } <- Files ],
-	mnesia:sync_log(),
+	[ rpc:call(Server,webpage_file,add,[ Path, Local, Mime ])  || { Path, Local, Mime } <- Files ],
+	rpc:call(Server,mnesia,sync_log,[]),
 	timer:sleep(5000),
-	mnesia:stop(),
-	io:format("done~n"),
-	erlang:halt(0);
+	io:format("done~n");
 
 process(Server,["status"]) ->
 	connect(Server),
@@ -92,7 +104,17 @@ process(Server,["console"]) ->
 	erlang:halt(0);
 
 process(Server,["start"]) ->
-	os:cmd("erl -noshell -noinput -sname " ++ atom_to_list(Server) ++ " -s webpage");
+	process_flag(trap_exit,true),
+	net_kernel:start([ Server, shortnames ]),
+	connect(Server),
+	rpc:call(Server,mnesia,start,[]),
+	rpc:call(Server,application,load,[webpage]),
+	rpc:call(Server,webpage,start,[]),
+	receive
+		'EXIT' -> 
+			io:format("done~n"),
+			erlang:halt(0)
+	end;
 
 process(Server,["stop"]) ->
 	connect(Server),
@@ -100,8 +122,28 @@ process(Server,["stop"]) ->
 	rpc:call(Server, erlang, halt, []);
 
 process(_Server,_) ->
-	io:format("usage: webpage [start|stop|route|file]~n").
+	io:format("
+usage: webpage [start|stop|status|console|observer|init|route|file]
+	start [node]			- start a new node
+	stop [node]			- stop a node
+	status [node]			- return the status of a node
+	console [node]			- connects a console to a node
+	observer [node]			- run the observer on a node
+	init [node] 			- initialize webpage database
+	setup [node] file		- load a setup file on a node
+	route [node] [list|add|remove|get]	
+		list 			- list all routes by path
+		add path module args	- add a MFA at a path
+		remove path		- remove a MFA for path
+		get path		- get the MFA for path
+	file [node] [list|add|remove|get]
+		list			- list all files by path
+		add path file mime	- add a file at path with mime
+		remove path		- remove a file at path
+").
 
+%% Loads a configuration file from our home base
+%%
 load_config(Home) ->
 	case file:consult(Home ++ "/.webpage") of 
 		{ok, Config } -> 
@@ -110,17 +152,49 @@ load_config(Home) ->
 			io:format("Please create a ~s/.webpage configuration file~n", [ Home ]), halt(0)
 	end.
 
-find_host(Config) ->
-	case proplists:get_value(host,Config) of
+set_cookie(Config) ->
+	case proplists:get_value(cookie,Config) of
 		undefined ->
-			io:format("Please set host in configuration file~n"), halt(0);
+			ok;
+		Cookie ->
+			erlang:set_cookie(node(),Cookie)
+	end.
+
+find_server([]) ->
+	none;
+find_server([Host|_Args]) ->
+	case string:tokens(Host,"@") of
+		[ _Name , _Host ] -> Host;
+		_ -> none
+	end.
+
+find_host(Config,[])->
+	Host = proplists:get_value(host,Config),
+	case Host of
+		undefined ->
+			io:format("Please set host in ~~/.botbop~n"), 
+			halt(1);
 		Host ->
-			Host
+			{ Host, [] }
+	end;
+find_host(Config,[ _A | As ] = Args) ->
+	Server = find_server(Args),
+	case { Server, proplists:get_value(host,Config) } of
+		{ none, undefined } ->
+			io:format("Please set host in ~~/.webpage~n"), 
+			halt(1);
+		{ Server, undefined } ->
+			{ list_to_atom(Server), As };
+		{ none, Host } ->
+			{ Host, Args };
+		{ Server, _Host } ->
+			{ Server, As }
 	end.
 
 main(Args) ->
 	Home = os:getenv("HOME"),
 	Config = load_config(Home),
-	Host = find_host(Config),
+	{ Host, Args2 } = find_host(Config,Args),
+	ok = set_cookie(Config),
 	io:format("Connecting to ~p~n", [ Host ]),
-	process(Host,Args).
+	process(Host,Args2).
