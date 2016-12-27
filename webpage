@@ -4,7 +4,13 @@
 %%
 %% Copyright 2016 David J. Goehrig <dave@dloh.org>
 
--include("include/http.hrl").
+-record(response, {
+	socket, module, function, args, upgrade = false,
+	status = 200,
+	protocol = <<"HTTP/1.1">>,
+	headers = [],
+	body = <<>>
+}).
 
 %% starts a local node to issue commands from
 %% we name these sequentially with system time
