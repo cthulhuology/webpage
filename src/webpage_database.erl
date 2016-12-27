@@ -18,12 +18,12 @@ stop() ->
 initialize() ->
 	{ ok, Nodes } = application:get_env(webpage,nodes),
 	{ ok, Tables } =  application:get_env(webpage,tables),
-	rpc:multicall(Nodes, mnesia,stop, []),
-	mnesia:delete_schema(Nodes),
-	mnesia:create_schema(Nodes),
-	rpc:multicall(Nodes, mnesia ,start, []),
-	[ Table:install(Nodes) || Table <- Tables ],
-	rpc:multicall(Nodes, mnesia,stop, []),
+	rpc:multicall([ node() | Nodes ], mnesia,stop, []),
+	mnesia:delete_schema([ node() | Nodes ]),
+	mnesia:create_schema([ node() | Nodes ]),
+	rpc:multicall([ node() |  Nodes ], mnesia ,start, []),
+	[ Table:install([ node() | Nodes ]) || Table <- Tables ],
+	rpc:multicall([ node() | Nodes ] , mnesia,stop, []),
 	ok.
 
 %% ensures all database tables are running before we use it
@@ -31,7 +31,7 @@ init([]) ->
 	{ ok, Nodes } = application:get_env(webpage,nodes),
 	{ ok, Tables } =  application:get_env(webpage,tables),
 	{ ok, Timeout } = application:get_env(webpage,table_timeout),
-	rpc:multicall(Nodes,mnesia,start,[]),
+	rpc:multicall([ node() | Nodes ] ,mnesia,start,[]),
 	case mnesia:wait_for_tables(Tables,Timeout) of
 		ok ->
 			error_logger:info_msg("Database started on ~p", [ Nodes ]),

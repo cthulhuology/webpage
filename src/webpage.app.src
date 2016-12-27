@@ -22,7 +22,7 @@
 	]},
 	{mod, { webpage_app, []}},
 	{env, [
-		{ nodes, [ webpage@localhost ]},
+		{ nodes, [] },
 		{ tables, [ webpage_auth, webpage_rest, webpage_file ]},
 		{ table_timeout, 20000 },
 		{ salt, <<"thisisareallyterriblesaltdon'tuse">> },

@@ -50,7 +50,6 @@ process(Server, [ "setup", File ]) ->
 	Files = proplists:get_value(files, Config),
 	[ rpc:call(Server,webpage_file,add,[ Path, Local, Mime ])  || { Path, Local, Mime } <- Files ],
 	rpc:call(Server,mnesia,sync_log,[]),
-	timer:sleep(5000),
 	io:format("done~n");
 
 process(Server,["status"]) ->
@@ -200,7 +199,7 @@ find_host(Config,[ _A | As ] = Args) ->
 		{ none, Host } ->
 			{ Host, Args };
 		{ Server, _Host } ->
-			{ Server, As }
+			{ list_to_atom(Server), As }
 	end.
 
 main(Args) ->
