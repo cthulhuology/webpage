@@ -111,11 +111,16 @@ process(Server,["console"]) ->
 
 process(Server,["start"]) ->
 	process_flag(trap_exit,true),
-	net_kernel:start([ Server, shortnames ]),
-	connect(Server),
-	rpc:call(Server,mnesia,start,[]),
-	rpc:call(Server,application,load,[webpage]),
-	rpc:call(Server,webpage,start,[]),
+	case net_kernel:start([ Server, shortnames ]) of
+		{ ok, Pid } ->
+			io:format("Started ~p at ~p~n", [ Server, Pid ]),
+			connect(Server),
+			rpc:call(Server,mnesia,start,[]),
+			rpc:call(Server,application,load,[webpage]),
+			rpc:call(Server,webpage,start,[]);
+		{ error, Reason } ->
+			io:format("Failed to start ~p: ~p~n", [ Server, Reason ])	
+	end,
 	receive
 		'EXIT' -> 
 			io:format("done~n"),
@@ -125,7 +130,8 @@ process(Server,["start"]) ->
 process(Server,["stop"]) ->
 	connect(Server),
 	rpc:call(Server, mnesia, stop, []),
-	rpc:call(Server, erlang, halt, []);
+	rpc:call(Server, webpage, stop, []),
+	rpc:call(Server, erlang, halt, [0]);
 
 process(_Server,_) ->
 	io:format("

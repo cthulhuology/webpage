@@ -27,7 +27,7 @@ start_link(Socket,Module) ->
 	},[]).
 
 stop() ->
-	gen_server:cast(?MODULE,stop).
+	application:stop(webpage).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Private API
