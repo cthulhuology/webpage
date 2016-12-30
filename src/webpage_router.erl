@@ -126,7 +126,7 @@ terminate(_Reason,_State) ->
 	ok.
 
 route(_Method, [ Module, Function, Args ],R) ->		%% route defined function
-	error_logger:info_msg("Route to ~p:~p(~p)", [ Module, Function, Args ]),
+	error_logger:info_msg("MFA Route to ~p:~p(~p)", [ Module, Function, Args ]),
 	Functions = Module:module_info(functions),
 	case proplists:lookup(Function,Functions) of
 		{ Fun, 1 } ->
@@ -139,10 +139,11 @@ route(_Method, [ Module, Function, Args ],R) ->		%% route defined function
 					Module:Fun(RS)
 			end;	
 		_ ->
+			error_logger:error_msg("Function not found ~p:~p~n", [Module,  Function ]),
 			#response{ status = 405 }
 	end;
 route(Method, [ Module, Args ], R) ->			%% route request supplied function
-	error_logger:info_msg("Route to ~p:~p(~p)", [ Module, Method, Args ]),
+	error_logger:info_msg("MMA Route to ~p:~p(~p)", [ Module, Method, Args ]),
 	Functions = Module:module_info(functions),
 	case proplists:lookup(Method,Functions) of
 		{ Fun, 1 } ->
@@ -166,12 +167,12 @@ json_to_route([]) ->
 	[];
 json_to_route(JSON) when is_binary(JSON) ->
 	[ json_to_route(Route) || Route <- json:decode(JSON) ];
-json_to_route([ Module, Args ]) ->
+json_to_route([ Module, Args ]) when is_binary(Module) ->
 	[ list_to_atom(binary_to_list(Module)), json_to_route(Args) ];	
 json_to_route([ Module, Function, Args ]) ->
 	[ list_to_atom(binary_to_list(Module)), list_to_atom(binary_to_list(Function)), json_to_route(Args) ];
-json_to_route([ X ]) when is_list(X) ->
-	[ json_to_route(X) ].
+json_to_route([ X | T ]) when is_list(X) ->
+	[ json_to_route(X) | json_to_route(T) ].
 
 %% encode a route into json
 route_to_json(Route) ->

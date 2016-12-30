@@ -40,7 +40,6 @@ process(Server,["init"]) ->
 			erlang:halt(1)
 	end;
 
-
 process(Server, [ "setup", File ]) ->
 	connect(Server),
 	{ ok, Config } = file:consult(File),
@@ -49,6 +48,9 @@ process(Server, [ "setup", File ]) ->
 	[ rpc:call(Server, webpage_router,add,[ Path, Module ]) ||  { Path, Module } <- Routes ],
 	Files = proplists:get_value(files, Config),
 	[ rpc:call(Server,webpage_file,add,[ Path, Local, Mime ])  || { Path, Local, Mime } <- Files ],
+	Users = proplists:get_value(users, Config),
+	[ setup_user(Server, User, Email, Pass, Paths) ||
+		{ User, Email, Pass, Paths } <- Users ],
 	rpc:call(Server,mnesia,sync_log,[]),
 	io:format("done~n");
 
@@ -132,9 +134,41 @@ process(Server,["stop"]) ->
 	rpc:call(Server, webpage, stop, []),
 	rpc:call(Server, erlang, halt, [0]);
 
+
+process(Server,["user","add",User,Email,Password]) ->
+	connect(Server),
+	rpc:call(Server, webpage_auth, add, [ User, Email, Password ]);
+
+process(Server,["user","auth", Path, User, Password]) ->
+	connect(Server),
+	Res = rpc:call(Server, webpage_auth, test, [ Path, User, Password ]),
+	io:format("~p~n", [ Res ]);
+
+process(Server,["user","remove",User,Email]) ->
+	connect(Server),
+	rpc:call(Server, webpage_auth, remove,[ User, Email ]);
+
+process(Server,["user","grant", User, Pattern ]) ->
+	connect(Server),
+	rpc:call(Server, webpage_auth, grant, [ User, Pattern ]);	
+
+process(Server,["user","revoke", User, Pattern ]) ->
+	connect(Server),
+	rpc:call(Server, webpage_auth, revoke, [ User, Pattern ]);
+
+process(Server,["user","list"]) ->
+	connect(Server),
+	Users = rpc:call(Server, webpage_auth, users, []),
+	io:format("~p~n", [ Users ]);
+
+
+%% This needs to be the last state in the process funciton, as it
+%% is a catchall that prints out the status message.  If you are
+%% adding new methods to it please add them above, and amend this
+%% to reflect the new usage.
 process(_Server,_) ->
 	io:format("
-usage: webpage [start|stop|status|console|observer|init|route|file]
+usage: webpage [start|stop|status|console|observer|init|route|file|user]
 	start [node]			- start a new node
 	stop [node]			- stop a node
 	status [node]			- return the status of a node
@@ -151,6 +185,12 @@ usage: webpage [start|stop|status|console|observer|init|route|file]
 		list			- list all files by path
 		add path file mime	- add a file at path with mime
 		remove path		- remove a file at path
+	user [node] [list|add|remove|grant|revoke]
+		list			- list all users by name
+		add user email pass	- add a user
+		remove user email	- remove a user
+		grant user path		- grant access to a path
+		revoke user path	- remove access to a path
 ").
 
 %% Loads a configuration file from our home base
@@ -170,6 +210,11 @@ set_cookie(Config) ->
 		Cookie ->
 			erlang:set_cookie(node(),Cookie)
 	end.
+
+setup_user(Server,User,Email,Password,Paths) ->
+	rpc:call(Server, webpage_auth, add, [ User, Email, Password ]),
+	[ rpc:call(Server, webpage_auth, grant, [ User, Path ]) ||
+		Path <- Paths ].
 
 find_server([]) ->
 	none;

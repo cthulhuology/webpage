@@ -7,15 +7,25 @@
 
 -record(webpage_auth, { token, user, email, active, paths = [] }).
 
--export([ auth/1 ]).
+-export([ auth/1, test/3 ]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Public API
 %
+test(Path,User,Password) ->
+	U = binary:list_to_bin(User),
+	P = binary:list_to_bin(Password),
+	Token = base64:encode(<< U/binary, ":", P/binary >>),
+	case auth(#request{ path = Path, headers = [{ <<"Authorization">>, <<"Basic ", Token/binary >> }] }) of
+		#request{} -> ok;
+		_ -> fail
+	end.
 
 auth(Request = #request{ path = Path, headers = Headers }) ->
+	error_logger:info_msg("Authenticating ~p~n", [ Request ]),	
 	case proplists:get_value(<<"Authorization">>, Headers ) of
 		undefined ->
+			error_logger:error_msg("Auth failed ~p~n", [ Request ]),
 			#response{ status = 401, headers = [{  <<"WWW-Authenticate">>,<<"Basic realm=\"webpage\"">> }, {<<"Content-Length">>, <<"0">> }]};
 		Authorization ->
 			F = fun() ->
