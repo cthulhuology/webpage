@@ -38,3 +38,9 @@ application in a setup.conf file for webpage you can now load it:
 
 This will load the routes, files, and users into the database and make them
 immediately avaiable.  
+
+You can get a full list of command by typing
+
+	webpage
+
+

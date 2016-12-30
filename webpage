@@ -78,23 +78,50 @@ process(Server,["file","list"]) ->
 	Files = rpc:call(Server,webpage_file, list, []),
 	io:format("~p~n", [ Files ]);
 
+process(_Server,["file","help"]) ->
+	io:format("
+webpage [node] file [list|add|remove|get]
+
+	list			returns a list of all file paths
+	add Path Filename Mime	maps a path to local file with mimetype
+	remove Path		removes a path mapping
+	get Path		returns the contents of file at path mapping
+
+");	
+
+
 process(Server,["route","list"]) ->
 	connect(Server),
 	Res = rpc:call(Server,webpage_router,paths,[]),
 	io:format("~p~n",[Res]);
 
-process(Server,["route","add",Path,Module,Args]) ->
+process(Server,["route","add",Path,Args]) ->
 	connect(Server),
 	Bin = binary:list_to_bin(Args),
 	io:format("Got json ~p~n", [ Bin ]),
 	Terms = json:decode(Bin),
 	io:format("Tems are ~p~n", [ Terms ]),
-	rpc:call(Server,webpage_router,add, [ Path, [[ Module, Terms ]] ]);
+	rpc:call(Server,webpage_router,add, [ Path, Terms ]);
+
+process(Server,["route","remove",Path]) ->
+	connect(Server),
+	rpc:call(Server,webpage_router,remove, [ Path ]);
 
 process(Server,[ "route","get", Path ]) ->
 	connect(Server),
 	List = rpc:call(Server,webpage_router,route, [Path]),
 	io:format("~p~n", [ List ]);
+
+process(_Server,[ "route","help" ]) ->
+	io:format("
+webpage [node] route [list|add|remove|get]
+
+	list			returns a list of paths
+	add Path JSON		maps a path to a route list expressed in JSON
+	remove Path		removes a route list for the given path 
+	get Path		returns the route list associated with the given path
+
+");
 
 process(Server,["observer"]) ->
 	connect(Server),
@@ -160,6 +187,18 @@ process(Server,["user","list"]) ->
 	connect(Server),
 	Users = rpc:call(Server, webpage_auth, users, []),
 	io:format("~p~n", [ Users ]);
+
+process(_Server,["user","help"]) ->
+	io:format("
+webpage user [list|add|remove|grant|revoke]
+
+	list				returns a list of all the usernames in the system
+	add User Email Password		creates a new user with email and password
+	remove User Email		removes the user with matching name and password
+	grant User Path			grants a access to a path for a given user
+	revoke User Path		removes access to a path for a given user
+
+");
 
 
 %% This needs to be the last state in the process funciton, as it
