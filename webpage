@@ -217,9 +217,9 @@ usage: webpage [start|stop|status|console|observer|init|route|file|user]
 	setup [node] file		- load a setup file on a node
 	route [node] [list|add|remove|get]	
 		list 			- list all routes by path
-		add path module args	- add a MFA at a path
-		remove path		- remove a MFA for path
-		get path		- get the MFA for path
+		add path JSON		- add a route list for path
+		remove path		- remove a route list for path
+		get path		- get the route list for path
 	file [node] [list|add|remove|get]
 		list			- list all files by path
 		add path file mime	- add a file at path with mime
